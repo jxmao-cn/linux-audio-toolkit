@@ -2,10 +2,10 @@
 
 [简体中文](README.md) | [English](README_EN.md)
 
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](setup.sh)
-[![Platform](https://img.shields.io/badge/Platform-Linux%20X11%20%26%20Wayland-green)](voice_input/text_injector.py)
-[![ASR](https://img.shields.io/badge/ASR-Sherpa--ONNX%20SenseVoice-orange)](voice_input/asr_engine.py)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](assets/badge_python.svg)](setup.sh)
+[![Platform](assets/badge_platform.svg)](voice_input/text_injector.py)
+[![ASR](assets/badge_asr.svg)](voice_input/asr_engine.py)
+[![License: MIT](assets/badge_license.svg)](LICENSE)
 
 > Low-latency offline voice input for the Linux desktop, optimized for Chinese and
 > Chinese–English code-switching. Supports push-to-talk (PTT) and continuous dictation (Toggle),
