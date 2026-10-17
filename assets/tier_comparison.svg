@@ -1,15 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 320" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 350" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
   <defs>
     <filter id="tcShadow" x="-10%" y="-10%" width="120%" height="130%">
       <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.12"/>
     </filter>
+    <marker id="tcArrow" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M 1 1.5 L 8.5 5 L 1 8.5 z" fill="#059669"/>
+    </marker>
   </defs>
 
-  <rect x="0" y="0" width="1000" height="320" rx="14" fill="#f8fafc"/>
-  <rect x="0" y="0" width="1000" height="320" rx="14" fill="none" stroke="#e2e8f0" stroke-width="1.5"/>
+  <rect x="0" y="0" width="1000" height="350" rx="14" fill="#f8fafc"/>
+  <rect x="0" y="0" width="1000" height="350" rx="14" fill="none" stroke="#e2e8f0" stroke-width="1.5"/>
 
   <text x="500" y="26" text-anchor="middle" font-size="16" font-weight="700" fill="#1e293b">4-Tier Post-Processing Architecture (Latency vs. VRAM vs. Accuracy)</text>
-  <text x="500" y="44" text-anchor="middle" font-size="11" fill="#64748b">Pick your tradeoff — every tier is guarded by a hard timeout so text injection never blocks</text>
+  <text x="500" y="44" text-anchor="middle" font-size="11" fill="#64748b">Pick your tradeoff -- every tier is guarded by a hard timeout so text injection never blocks</text>
 
   <!-- ===== Tier A ===== -->
   <g filter="url(#tcShadow)">
@@ -27,7 +30,7 @@
     <text x="132" y="182" font-size="10" fill="#334155">Filler word removal</text>
     <text x="132" y="196" font-size="10" fill="#334155">CJK-ASCII auto-spacing</text>
     <text x="132" y="210" font-size="10" fill="#334155">spoken punctuation + custom dict</text>
-    <text x="132" y="230" font-size="9.5" font-weight="700" fill="#059669">ZERO LATENCY · ALWAYS ON</text>
+    <text x="132" y="230" font-size="9.5" font-weight="700" fill="#059669">ZERO LATENCY | ALWAYS ON</text>
   </g>
 
   <!-- ===== Tier B ===== -->
@@ -43,7 +46,7 @@
     <text x="376" y="143" fill="#475569">GPU VRAM: <tspan font-weight="700" fill="#1e293b">~21 GB</tspan></text>
     <text x="376" y="158" font-size="9.5" fill="#475569">Network: <tspan font-weight="700" fill="#1e293b">100% Offline (Localhost)</tspan></text>
     <line x1="276" y1="166" x2="476" y2="166" stroke="#e2e8f0" stroke-width="1"/>
-    <text x="376" y="182" font-size="10" fill="#334155">Homophone &amp; grammar correction</text>
+    <text x="376" y="182" font-size="10" fill="#334155">Homophone and grammar correction</text>
     <text x="376" y="196" font-size="10" fill="#334155" font-family="ui-monospace, Menlo, monospace">enable_thinking=false fast path</text>
     <text x="376" y="210" font-size="10" fill="#334155">private, no data leaves device</text>
     <text x="376" y="230" font-size="9.5" font-weight="700" fill="#d97706">BEST PRIVACY / QUALITY BALANCE</text>
@@ -65,7 +68,7 @@
     <text x="620" y="182" font-size="10" fill="#334155">High accuracy cloud LLM polish</text>
     <text x="620" y="196" font-size="10" fill="#334155">local GPU 100% free for training</text>
     <text x="620" y="210" font-size="10" fill="#334155">OpenAI-compatible endpoint</text>
-    <text x="620" y="230" font-size="9.5" font-weight="700" fill="#2563eb">MAX ACCURACY · ZERO LOCAL VRAM</text>
+    <text x="620" y="230" font-size="9.5" font-weight="700" fill="#2563eb">MAX ACCURACY | ZERO LOCAL VRAM</text>
   </g>
 
   <!-- ===== Tier D ===== -->
@@ -84,13 +87,27 @@
     <text x="864" y="182" font-size="10" fill="#334155">Zero API key required</text>
     <text x="864" y="196" font-size="10" fill="#334155">reuses local OpenCode session</text>
     <text x="864" y="210" font-size="9.5" fill="#334155" font-family="ui-monospace, Menlo, monospace">deepseek-v4.1-flash-free</text>
-    <text x="864" y="230" font-size="9.5" font-weight="700" fill="#059669">FREE · NO KEY · NO GPU</text>
+    <text x="864" y="230" font-size="9.5" font-weight="700" fill="#059669">FREE | NO KEY | NO GPU</text>
+  </g>
+
+  <!-- fallback dashed arrows: 4 soft converging shafts from cards (y=246) to guard bar (y=286) -->
+  <g stroke="#059669" stroke-width="1.4" stroke-dasharray="5 4" opacity="0.65" fill="none">
+    <line x1="132" y1="250" x2="132" y2="282" marker-end="url(#tcArrow)"/>
+    <line x1="376" y1="250" x2="376" y2="282" marker-end="url(#tcArrow)"/>
+    <line x1="620" y1="250" x2="620" y2="282" marker-end="url(#tcArrow)"/>
+    <line x1="864" y1="250" x2="864" y2="282" marker-end="url(#tcArrow)"/>
+  </g>
+  <g text-anchor="start" font-size="9.5" font-weight="600" fill="#059669">
+    <text x="142" y="269">direct pass</text>
+    <text x="386" y="269">timeout -&gt; Tier A</text>
+    <text x="630" y="269">timeout -&gt; Tier A</text>
+    <text x="874" y="269">timeout -&gt; Tier A</text>
   </g>
 
   <!-- ===== Guard bar ===== -->
   <g filter="url(#tcShadow)">
-    <rect x="16" y="256" width="964" height="48" rx="10" fill="#059669"/>
-    <text x="500" y="276" text-anchor="middle" font-size="12" font-weight="700" fill="#ffffff">Universal Hard-Timeout &amp; Instant Fallback Guard &#8594; Never Blocks Text Injection</text>
-    <text x="500" y="292" text-anchor="middle" font-size="10" fill="#d1fae5">any tier timeout / error instantly falls back to raw text — keystrokes always land in time</text>
+    <rect x="16" y="286" width="964" height="48" rx="10" fill="#059669"/>
+    <text x="500" y="306" text-anchor="middle" font-size="12" font-weight="700" fill="#ffffff">Universal Hard-Timeout and Instant Fallback Guard - Never Blocks Text Injection</text>
+    <text x="500" y="322" text-anchor="middle" font-size="10" fill="#d1fae5">any tier timeout / error instantly falls back to raw text -- keystrokes always land in time</text>
   </g>
 </svg>
