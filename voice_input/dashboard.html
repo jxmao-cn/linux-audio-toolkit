@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>voice-input 控制面板</title>
+<style>
+  :root {
+    --bg: #0d1016;
+    --panel: #161a23;
+    --panel-2: #1d222d;
+    --border: #262c3a;
+    --text: #e7ebf3;
+    --text-dim: #98a2b8;
+    --accent: #4da3ff;
+    --accent-dim: #24405e;
+    --ok: #3ddc97;
+    --warn: #ffc857;
+    --err: #ff6b6b;
+    --danger: #b22d2d;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px 22px 40px;
+    background: radial-gradient(1200px 600px at 20% -10%, #172033 0%, var(--bg) 60%);
+    color: var(--text);
+    font: 14px/1.55 -apple-system, "Segoe UI", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    min-height: 100vh;
+  }
+  h1 { font-size: 17px; margin: 0 0 2px; letter-spacing: .3px; }
+  h2 { font-size: 13px; margin: 0 0 12px; color: var(--text-dim); font-weight: 600; letter-spacing: .6px; text-transform: uppercase; }
+  .sub { color: var(--text-dim); font-size: 12px; word-break: break-all; }
+
+  /* 顶部状态条 */
+  .statusbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    background: linear-gradient(180deg, #1a2030, var(--panel));
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px 16px; margin-bottom: 18px;
+  }
+  .statusbar .title { margin-right: auto; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 999px; padding: 5px 12px; font-size: 12.5px; white-space: nowrap;
+  }
+  .chip .k { color: var(--text-dim); }
+  .chip .v { font-variant-numeric: tabular-nums; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #666; flex: none; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px rgba(61,220,151,.7); }
+  .dot.off { background: #55607a; }
+  .dot.warn { background: var(--warn); box-shadow: 0 0 8px rgba(255,200,87,.6); }
+  .dot.err { background: var(--err); box-shadow: 0 0 8px rgba(255,107,107,.6); }
+  .badge-on { color: var(--ok); }
+  .badge-off { color: var(--text-dim); }
+  .badge-warn { color: var(--warn); }
+  button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 9px;
+    padding: 7px 13px; font-size: 13px; cursor: pointer;
+    transition: border-color .15s, background .15s, transform .05s;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); background: #232a38; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent-dim); border-color: #33628f; color: #dceaff; }
+  button.danger { background: var(--danger); border-color: #d24545; color: #ffecec; font-weight: 600; }
+  button.danger:hover:not(:disabled) { background: #cf3a3a; border-color: #ff8080; }
+  button.ghost { background: transparent; }
+
+  /* 卡片网格 */
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-bottom: 18px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 10px;
+    position: relative; transition: border-color .2s, box-shadow .2s;
+  }
+  .card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-dim), 0 6px 22px rgba(77,163,255,.12); }
+  .card.active::after {
+    content: "当前生效"; position: absolute; top: 12px; right: 12px;
+    background: var(--accent-dim); color: #cfe4ff; font-size: 11px;
+    border-radius: 999px; padding: 2px 9px; border: 1px solid #33628f;
+  }
+  .card .tag { font-size: 11px; color: var(--text-dim); letter-spacing: 1px; }
+  .card .name { font-size: 15.5px; font-weight: 600; }
+  .card .desc { color: var(--text-dim); font-size: 12.5px; min-height: 38px; }
+  .card .stats { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill { background: #10141c; border: 1px solid var(--border); color: var(--text-dim); border-radius: 7px; padding: 2px 8px; font-size: 11.5px; }
+  .card button { margin-top: auto; }
+
+  /* 功能行 */
+  .row {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; margin-bottom: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  }
+  .row .label { min-width: 96px; color: var(--text-dim); font-size: 12.5px; letter-spacing: .5px; }
+  .row .spacer { margin-left: auto; }
+  input[type=password], input[type=text] {
+    background: #0f131b; border: 1px solid var(--border); border-radius: 9px;
+    color: var(--text); padding: 8px 11px; font-size: 13px; min-width: 240px; flex: 1 1 240px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .path { color: var(--text-dim); font-size: 12px; word-break: break-all; }
+
+  /* 日志 */
+  .log {
+    background: #0a0d13; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px 14px; height: 260px; overflow: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+    white-space: pre-wrap; word-break: break-all; color: #c8d2e4; margin: 0;
+  }
+
+  /* 危险区 */
+  .danger-zone { border-color: #4a2323; background: linear-gradient(180deg, #241618, var(--panel)); }
+  .danger-zone .label { color: #ffb3b3; }
+  .hint { color: var(--text-dim); font-size: 12px; }
+
+  /* 通知 */
+  #toast {
+    position: fixed; right: 20px; bottom: 20px; max-width: 460px;
+    background: #1b2230; border: 1px solid var(--border); border-left: 4px solid var(--accent);
+    border-radius: 10px; padding: 11px 14px; font-size: 13px; white-space: pre-wrap;
+    box-shadow: 0 10px 30px rgba(0,0,0,.45); opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s; transform: translateY(8px); z-index: 50;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+  #toast.ok { border-left-color: var(--ok); }
+  #toast.err { border-left-color: var(--err); }
+  .busy { opacity: .6; }
+</style>
+</head>
+<body>
+
+<div class="statusbar">
+  <div class="title">
+    <h1>voice-input 控制面板</h1>
+    <div class="sub" id="configPath">正在载入状态…</div>
+  </div>
+  <span class="chip"><span id="voiceDot" class="dot off"></span><span class="k">语音服务</span><span class="v" id="voiceState">未知</span></span>
+  <span class="chip"><span id="modeDot" class="dot off"></span><span class="k">纠错档</span><span class="v" id="modeState">未知</span></span>
+  <span class="chip"><span id="qwenDot" class="dot off"></span><span class="k">本地模型</span><span class="v" id="qwenState">未知</span></span>
+  <span class="chip"><span class="k">GPU 显存</span><span class="v" id="gpuMem">--</span></span>
+  <span class="chip"><span class="k">功耗</span><span class="v" id="gpuPower">--</span></span>
+  <span class="chip"><span class="k">语音 CPU/内存</span><span class="v" id="voiceRes">--</span></span>
+  <button id="refreshBtn">刷新状态</button>
+</div>
+
+<h2>纠错模式（四档随时切换）</h2>
+<div class="grid">
+  <div class="card" id="card-off">
+    <div class="tag">A 档</div>
+    <div class="name">纯本地规则纠错</div>
+    <div class="desc">去口头禅 + 中英间距 + 自定义替换，确定性命中。</div>
+    <div class="stats"><span class="pill">0 GPU 占用</span><span class="pill">零延迟</span><span class="pill">离线</span></div>
+    <button data-mode="off">切换到此档</button>
+  </div>
+  <div class="card" id="card-local_qwen">
+    <div class="tag">B 档</div>
+    <div class="name">本地千问 Qwen3.8-27B</div>
+    <div class="desc">本机 vLLM 容器做同音字 / 语法纠错，数据不出本机。</div>
+    <div class="stats"><span class="pill">约 0.3s</span><span class="pill">约占 21GB 显存</span><span class="pill">本地推理</span></div>
+    <button data-mode="local_qwen">切换到此档</button>
+  </div>
+  <div class="card" id="card-deepseek">
+    <div class="tag">C 档</div>
+    <div class="name">云端 DeepSeek</div>
+    <div class="desc">调用云端 API 纠错，不占本机显存，需自备 API Key。</div>
+    <div class="stats"><span class="pill">按量计费</span><span class="pill">不占 GPU</span><span class="pill">需联网</span></div>
+    <button data-mode="deepseek">切换到此档</button>
+  </div>
+  <div class="card" id="card-opencode">
+    <div class="tag">D 档</div>
+    <div class="name">OpenCode 免费纠错</div>
+    <div class="desc">复用本机 OpenCode 登录态，DeepSeek V4.1 Flash 免费档，零 Key，单次约 2~3 秒。</div>
+    <div class="stats"><span class="pill">免费</span><span class="pill">零 Key</span><span class="pill">约 2~3s</span></div>
+    <input type="text" id="opencodeModel" value="opencode/deepseek-v4.1-flash-free" spellcheck="false" style="min-width:0">
+    <button id="opencodeSwitch">保存并切换到此档</button>
+    <button id="opencodeTest" class="ghost">连通性测试</button>
+  </div>
+</div>
+
+<h2>本地模型容器</h2>
+<div class="row">
+  <span class="label">千问容器</span>
+  <button id="qwenStart">启动</button>
+  <button id="qwenStop">停止</button>
+  <span class="path">compose：<span id="composePath">--</span></span>
+</div>
+
+<h2>云端 API Key</h2>
+<div class="row">
+  <span class="label">DeepSeek Key</span>
+  <input id="deepseekKey" type="password" placeholder="sk-…（仅写入本机 config.yaml）" autocomplete="off">
+  <button class="primary" id="keySave">保存 Key</button>
+  <button id="keyTest">连通性测试</button>
+  <span class="hint" id="keyHint">Key 只保存在本机配置文件，不会上传。</span>
+</div>
+
+<h2>语音服务</h2>
+<div class="row">
+  <span class="label">守护进程</span>
+  <button id="voiceStart">启动</button>
+  <button id="voiceStop">停止</button>
+  <button id="voiceRestart">重启</button>
+  <button id="voiceTest">端到端自检</button>
+  <span class="hint">快捷键：按住 右Shift / F9 说话，按一下 右Ctrl 连续听写。</span>
+</div>
+
+<h2>运行日志</h2>
+<div class="row" style="display:block">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+    <span class="path" id="logPath">--</span>
+    <button class="spacer" id="logRefresh" style="margin-left:auto">刷新日志</button>
+  </div>
+  <pre class="log" id="logBox">（暂无日志）</pre>
+</div>
+
+<h2>危险操作</h2>
+<div class="row danger-zone">
+  <span class="label">一次性收尾</span>
+  <button class="danger" id="stopAll">停止全部服务</button>
+  <button class="danger" id="shutdown">关闭电脑</button>
+  <span class="hint">「关闭电脑」不可撤销：会先停止语音服务与本地模型容器，再执行关机。</span>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { mode: null, qwen: "missing", running: false };
+
+  function fmtMB(v) {
+    if (v === null || v === undefined) return "--";
+    if (v >= 1024) return (v / 1024).toFixed(1) + " GB";
+    return Math.round(v) + " MB";
+  }
+  function toast(msg, kind) {
+    var box = $("toast");
+    box.textContent = msg;
+    box.className = "show " + (kind || "");
+    clearTimeout(box._t);
+    box._t = setTimeout(function () { box.className = ""; }, 9000);
+  }
+  function busy(on) { document.body.classList.toggle("busy", !!on); }
+
+  function api(path, options) {
+    return fetch(path, options).then(function (resp) {
+      return resp.json().catch(function () {
+        return { ok: false, message: "响应不是合法 JSON（HTTP " + resp.status + "）" };
+      });
+    });
+  }
+  function post(path, body) {
+    return api(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {})
+    });
+  }
+  function describe(res, okPrefix) {
+    if (!res) return "无响应";
+    var head = res.ok ? (okPrefix || "操作成功") : "操作失败";
+    var parts = [head];
+    if (res.message) parts.push(res.message);
+    if (res.output) parts.push("---\n" + res.output);
+    if (res.error) parts.push(res.error);
+    return parts.join("\n");
+  }
+  function run(promise, okPrefix) {
+    busy(true);
+    promise.then(function (res) {
+      toast(describe(res, okPrefix), res && res.ok ? "ok" : "err");
+      return refresh();
+    }).catch(function (err) {
+      toast("请求异常：" + err, "err");
+    }).then(function () { busy(false); });
+  }
+
+  var MODE_LABEL = { "off": "A 档 · 纯本地规则", "local_qwen": "B 档 · 本地千问", "deepseek": "C 档 · 云端 DeepSeek", "opencode": "D 档 · OpenCode 免费", "custom": "自定义" };
+  var QWEN_LABEL = { running: "运行中", stopped: "已停止", missing: "未部署" };
+
+  function refresh() {
+    return api("/api/status").then(function (st) {
+      if (!st || !st.ok || st.error) {
+        if (st && st.error) toast("读取状态失败：" + st.error, "err");
+        return;
+      }
+      state.mode = st.llm_mode;
+      state.running = !!st.voice_running;
+      var qc = st.qwen_container || {};
+      state.qwen = qc.state || "missing";
+
+      $("configPath").textContent = "配置：" + (st.config_path || "--") + "　日志：" + (st.project_root ? "voice-input.log" : "--");
+      $("voiceDot").className = "dot " + (state.running ? "on" : "off");
+      $("voiceState").textContent = state.running ? ("运行中 PID " + st.voice_pid) : "未运行";
+      $("voiceState").className = "v " + (state.running ? "badge-on" : "badge-off");
+
+      $("modeDot").className = "dot " + (state.mode === "off" ? "off" : "on");
+      $("modeState").textContent = MODE_LABEL[state.mode] || state.mode;
+      $("modeState").className = "v " + (state.mode === "off" ? "badge-off" : "badge-on");
+
+      $("qwenDot").className = "dot " + (state.qwen === "running" ? "on" : (state.qwen === "stopped" ? "warn" : "err"));
+      $("qwenState").textContent = (QWEN_LABEL[state.qwen] || state.qwen) + (qc.container ? " · " + qc.container : "");
+
+      var res = st.resources || {};
+      $("gpuMem").textContent = fmtMB(res.gpu_used_mb) + (res.qwen_mem ? "（含千问 " + fmtMB(res.qwen_mem) + "）" : "");
+      $("gpuPower").textContent = (res.gpu_power_w === null || res.gpu_power_w === undefined) ? "--" : res.gpu_power_w + " W";
+      $("voiceRes").textContent = (res.voice_cpu === null || res.voice_cpu === undefined ? "--" : res.voice_cpu + " %") +
+        " / " + fmtMB(res.voice_mem_mb);
+
+      ["off", "local_qwen", "deepseek", "opencode"].forEach(function (m) {
+        var card = $("card-" + m);
+        if (card) card.classList.toggle("active", state.mode === m);
+      });
+      var compose = qc.compose || "";
+      $("composePath").textContent = compose ? compose + (qc.compose_exists ? "" : "（不存在）") : "未配置";
+
+      if (st.deepseek_key_set) {
+        $("keyHint").textContent = "已保存 Key（" + (((st.llm_modes || {}).deepseek || {}).api_key || "") + "），可点击「连通性测试」。";
+      }
+
+      // D 档模型名回填（用户正在编辑时不覆盖）。
+      var ocInput = $("opencodeModel");
+      if (ocInput && document.activeElement !== ocInput) {
+        ocInput.value = ((st.post_processor || {}).opencode_model)
+          || st.opencode_model
+          || (((st.llm_modes || {}).opencode || {}).opencode_model || "")
+          || "opencode/deepseek-v4.1-flash-free";
+      }
+    }).catch(function () { /* 轮询失败静默 */ });
+  }
+
+  function refreshLogs() {
+    return api("/api/logs?lines=120").then(function (res) {
+      if (!res || !res.ok) return;
+      $("logPath").textContent = res.path + (res.exists ? "" : "（暂无文件）");
+      var box = $("logBox");
+      var atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 12;
+      box.textContent = res.text || "（暂无日志）";
+      if (atBottom) box.scrollTop = box.scrollHeight;
+    }).catch(function () {});
+  }
+
+  // A/B/C 三档切换（D 档见下面的独立处理器）
+  ["off", "local_qwen", "deepseek"].forEach(function (m) {
+    var card = $("card-" + m);
+    if (!card) return;
+    card.querySelector("button").addEventListener("click", function () {
+      if (state.mode === m) { toast("当前已生效：" + (MODE_LABEL[m] || m)); return; }
+      run(post("/api/mode", { mode: m }), "已切换为 " + (MODE_LABEL[m] || m));
+    });
+  });
+
+  // D 档：保存模型名并切换 + 连通性测试
+  $("opencodeSwitch").addEventListener("click", function () {
+    var model = ($("opencodeModel").value || "").trim() || "opencode/deepseek-v4.1-flash-free";
+    run(post("/api/mode", { mode: "opencode", opencode_model: model }), "已切换为 " + MODE_LABEL.opencode);
+  });
+  $("opencodeTest").addEventListener("click", function () {
+    var model = ($("opencodeModel").value || "").trim();
+    busy(true);
+    post("/api/opencode_test", { model: model }).then(function (res) {
+      var detail = describe(res, "OpenCode 连通正常");
+      if (res && res.elapsed !== undefined) detail += "\n耗时：" + res.elapsed + "s";
+      if (res && res.output) detail += "\n输出：" + res.output;
+      if (res && !res.ok && res.stderr) detail += "\n--- stderr 尾部 ---\n" + res.stderr;
+      toast(detail, res && res.ok ? "ok" : "err");
+    }).catch(function (err) { toast("测试异常：" + err, "err"); })
+      .then(function () { busy(false); });
+  });
+
+  $("qwenStart").addEventListener("click", function () { run(post("/api/qwen", { action: "start" }), "本地模型启动完成"); });
+  $("qwenStop").addEventListener("click", function () { run(post("/api/qwen", { action: "stop" }), "本地模型已停止"); });
+
+  $("keySave").addEventListener("click", function () {
+    var key = ($("deepseekKey").value || "").trim();
+    if (!key) { toast("请输入 DeepSeek API Key", "err"); return; }
+    run(post("/api/deepseek_key", { api_key: key }), "Key 已保存");
+    $("deepseekKey").value = "";
+  });
+  $("keyTest").addEventListener("click", function () {
+    busy(true);
+    api("/api/deepseek_test").then(function (res) {
+      toast(describe(res, "DeepSeek 连通正常"), res && res.ok ? "ok" : "err");
+    }).catch(function (err) { toast("测试异常：" + err, "err"); })
+      .then(function () { busy(false); });
+  });
+
+  $("voiceStart").addEventListener("click", function () { run(post("/api/voice", { action: "start" }), "语音服务已启动"); });
+  $("voiceStop").addEventListener("click", function () { run(post("/api/voice", { action: "stop" }), "语音服务已停止"); });
+  $("voiceRestart").addEventListener("click", function () { run(post("/api/voice", { action: "restart" }), "语音服务已重启"); });
+  $("voiceTest").addEventListener("click", function () { run(post("/api/voice", { action: "test" }), "自检完成（详见输出）"); });
+
+  $("refreshBtn").addEventListener("click", function () { refresh(); refreshLogs(); });
+  $("logRefresh").addEventListener("click", refreshLogs);
+
+  $("stopAll").addEventListener("click", function () {
+    if (!confirm("确定要停止【语音服务】和【本地千问容器】吗？\n\n这将中断当前的语音输入。")) return;
+    if (!confirm("二次确认：再次点击「确定」立即停止全部服务。")) return;
+    run(post("/api/power", { action: "stop_all", confirm: "YES" }), "全部服务已停止");
+  });
+  $("shutdown").addEventListener("click", function () {
+    if (!confirm("确定要关闭电脑吗？\n\n将先停止语音服务与本地千问容器，然后执行关机。")) return;
+    if (!confirm("⚠️ 关机不可撤销！\n\n未保存的工作会丢失。确认现在关机吗？")) return;
+    run(post("/api/power", { action: "shutdown", confirm: "YES" }), "关机命令已发出");
+  });
+
+  refresh();
+  refreshLogs();
+  setInterval(refresh, 5000);
+  setInterval(refreshLogs, 15000);
+})();
+</script>
+</body>
+</html>

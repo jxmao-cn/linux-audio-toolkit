@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Voice Input Dashboard
+Name[zh_CN]=语音输入控制面板
+Comment=Manage voice-input: switch correction modes, control the local LLM container, view logs
+Comment[zh_CN]=管理语音输入：切换纠错档、启停本地大模型容器、查看日志
+# 不写死本机绝对路径：%k 是本 .desktop 文件自身位置，取其所在目录后再调用 run.sh dashboard。
+Exec=sh -c "cd \"\$(dirname \"\$1\")\" && exec ./run.sh dashboard" sh %k
+Icon=audio-input-microphone
+Terminal=false
+StartupNotify=false
+Categories=Utility;
+Keywords=voice;speech;input;asr;语音;听写;

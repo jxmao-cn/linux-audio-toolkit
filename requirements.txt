@@ -1,0 +1,9 @@
+numpy
+scipy
+requests
+pyyaml
+sounddevice
+sherpa-onnx>=1.10
+onnxruntime
+pynput
+python-xlib

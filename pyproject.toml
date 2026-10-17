@@ -1,0 +1,29 @@
+[project]
+name = "linux-voice-input"
+version = "0.2.0"
+description = "Local offline voice input for Linux: hold-to-talk and continuous dictation (sherpa-onnx + SenseVoice)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "requests",
+    "pyyaml",
+    "sounddevice",
+    "sherpa-onnx>=1.10",
+    "onnxruntime",
+    "pynput",
+    "python-xlib",
+]
+
+[project.scripts]
+linux-voice-input = "main:main"
+voice-input-control-center = "voice_input.control_center:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["voice_input"]
