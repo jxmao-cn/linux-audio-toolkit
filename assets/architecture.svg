@@ -1,0 +1,183 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 480" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 9 5 L 0 9 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowLight" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 9 5 L 0 9 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="1080" height="480" rx="16" fill="#f8fafc"/>
+  <rect x="0" y="0" width="1080" height="480" rx="16" fill="none" stroke="#e2e8f0" stroke-width="1.5"/>
+
+  <!-- Title -->
+  <text x="540" y="30" text-anchor="middle" font-size="19" font-weight="700" fill="#1e293b">linux-voice-input — End-to-End Pipeline &amp; Control Plane</text>
+  <text x="540" y="50" text-anchor="middle" font-size="11.5" font-weight="400" fill="#64748b">Five-stage offline-first voice typing pipeline · local ASR · guarded post-processing · lossless injection</text>
+
+  <!-- ============ STAGE 1 ============ -->
+  <g filter="url(#cardShadow)">
+    <rect x="30" y="64" width="192" height="296" rx="12" fill="#ffffff" stroke="#bfdbfe" stroke-width="1.5"/>
+    <rect x="30" y="64" width="192" height="64" rx="12" fill="#3b82f6"/>
+    <rect x="30" y="104" width="192" height="24" fill="#3b82f6"/>
+    <text x="126" y="86" text-anchor="middle" font-size="11" font-weight="700" fill="#dbeafe">STAGE 1</text>
+    <text x="126" y="106" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">Audio Capture &amp; VAD</text>
+    <text x="126" y="122" text-anchor="middle" font-size="10.5" font-weight="600" fill="#ffffff" font-style="italic">AudioCapture</text>
+  </g>
+  <g font-size="10.8" fill="#334155" text-anchor="middle">
+    <text x="126" y="150"><tspan font-weight="600" fill="#1e293b">PulseAudio / PipeWire</tspan></text>
+    <text x="126" y="167">/ PortAudio input</text>
+    <line x1="55" y1="178" x2="197" y2="178" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="126" y="196"><tspan font-weight="600" fill="#1e293b">Auto Fallback</tspan> &amp; Hotplug</text>
+    <line x1="55" y1="207" x2="197" y2="207" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="126" y="225">48kHz Stereo → 16kHz</text>
+    <text x="126" y="241">Mono Resample</text>
+    <line x1="55" y1="252" x2="197" y2="252" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="126" y="270">250ms Pre-roll RingBuffer</text>
+    <text x="126" y="286">+ <tspan font-weight="600" fill="#1e293b">Silero VAD</tspan> gate</text>
+    <rect x="52" y="298" width="148" height="44" rx="8" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
+    <text x="126" y="315" font-size="10.5" font-weight="700" fill="#2563eb">Speech only →</text>
+    <text x="126" y="330" font-size="10.5" fill="#2563eb">downstream stages</text>
+  </g>
+
+  <!-- ============ STAGE 2 ============ -->
+  <g filter="url(#cardShadow)">
+    <rect x="234" y="64" width="192" height="296" rx="12" fill="#ffffff" stroke="#fde68a" stroke-width="1.5"/>
+    <rect x="234" y="64" width="192" height="64" rx="12" fill="#f59e0b"/>
+    <rect x="234" y="104" width="192" height="24" fill="#f59e0b"/>
+    <text x="330" y="86" text-anchor="middle" font-size="11" font-weight="700" fill="#fef3c7">STAGE 2</text>
+    <text x="330" y="106" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">Dual-Key Hotkeys</text>
+    <text x="330" y="122" text-anchor="middle" font-size="10.5" font-weight="600" fill="#ffffff" font-style="italic">HotkeyDaemon</text>
+  </g>
+  <g font-size="10.8" fill="#334155" text-anchor="middle">
+    <text x="330" y="150"><tspan font-weight="700" fill="#b45309">PTT:</tspan> Hold R-Shift / F9</text>
+    <text x="330" y="167">≥ 0.2s to trigger</text>
+    <line x1="259" y1="178" x2="401" y2="178" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="330" y="196"><tspan font-weight="700" fill="#b45309">Toggle:</tspan> Tap Right Ctrl</text>
+    <text x="330" y="213">continuous dictation</text>
+    <line x1="259" y1="224" x2="401" y2="224" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="330" y="242">Combo-Key Guard</text>
+    <text x="330" y="258">&amp; Auto-Repeat Filter</text>
+    <rect x="256" y="270" width="148" height="72" rx="8" fill="#fffbeb" stroke="#fde68a" stroke-width="1"/>
+    <text x="330" y="287" font-size="10.5" font-weight="700" fill="#b45309">Independent</text>
+    <text x="330" y="302" font-size="10.5" fill="#92400e">state machines</text>
+    <text x="330" y="317" font-size="10.5" fill="#92400e">+ anti-misfire</text>
+    <text x="330" y="332" font-size="10.5" fill="#92400e">logic</text>
+  </g>
+
+  <!-- ============ STAGE 3 ============ -->
+  <g filter="url(#cardShadow)">
+    <rect x="438" y="64" width="192" height="296" rx="12" fill="#ffffff" stroke="#a7f3d0" stroke-width="1.5"/>
+    <rect x="438" y="64" width="192" height="64" rx="12" fill="#10b981"/>
+    <rect x="438" y="104" width="192" height="24" fill="#10b981"/>
+    <text x="534" y="86" text-anchor="middle" font-size="11" font-weight="700" fill="#d1fae5">STAGE 3</text>
+    <text x="534" y="106" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">Local Offline ASR</text>
+    <text x="534" y="122" text-anchor="middle" font-size="10.5" font-weight="600" fill="#ffffff" font-style="italic">ASREngine</text>
+  </g>
+  <g font-size="10.8" fill="#334155" text-anchor="middle">
+    <text x="534" y="150">sherpa-onnx +</text>
+    <text x="534" y="167"><tspan font-weight="600" fill="#1e293b">SenseVoice-Small</tspan> INT8</text>
+    <line x1="463" y1="178" x2="605" y2="178" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="534" y="196">ZH / EN / JA / KO / YUE</text>
+    <text x="534" y="213">Code-Switching ready</text>
+    <line x1="463" y1="224" x2="605" y2="224" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="534" y="242">~100ms CPU inference</text>
+    <text x="534" y="258">Zero GPU VRAM</text>
+    <rect x="460" y="270" width="148" height="72" rx="8" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1"/>
+    <text x="534" y="287" font-size="10.5" font-weight="700" fill="#047857">100% offline,</text>
+    <text x="534" y="302" font-size="10.5" fill="#047857">private by design</text>
+    <text x="534" y="317" font-size="10.5" fill="#047857">no cloud upload</text>
+    <text x="534" y="332" font-size="10.5" fill="#047857">for audio</text>
+  </g>
+
+  <!-- ============ STAGE 4 ============ -->
+  <g filter="url(#cardShadow)">
+    <rect x="642" y="64" width="192" height="296" rx="12" fill="#ffffff" stroke="#ddd6fe" stroke-width="1.5"/>
+    <rect x="642" y="64" width="192" height="64" rx="12" fill="#8b5cf6"/>
+    <rect x="642" y="104" width="192" height="24" fill="#8b5cf6"/>
+    <text x="738" y="86" text-anchor="middle" font-size="11" font-weight="700" fill="#ede9fe">STAGE 4</text>
+    <text x="738" y="106" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">4-Tier Post-Process</text>
+    <text x="738" y="122" text-anchor="middle" font-size="10.5" font-weight="600" fill="#ffffff" font-style="italic">PostProcessor</text>
+  </g>
+  <g font-size="10.5" fill="#334155" text-anchor="middle">
+    <text x="738" y="148"><tspan font-weight="700" fill="#6d28d9">A:</tspan> 0ms Rules (fillers,</text>
+    <text x="738" y="163">CJK-ASCII spacing)</text>
+    <text x="738" y="180"><tspan font-weight="700" fill="#6d28d9">B:</tspan> Local vLLM Qwen</text>
+    <text x="738" y="195">~300ms, No-Thinking</text>
+    <text x="738" y="212"><tspan font-weight="700" fill="#6d28d9">C:</tspan> Cloud API (DeepSeek)</text>
+    <text x="738" y="229">OpenAI-compatible</text>
+    <text x="738" y="246"><tspan font-weight="700" fill="#6d28d9">D:</tspan> OpenCode Free CLI</text>
+    <rect x="664" y="258" width="148" height="84" rx="8" fill="#f5f3ff" stroke="#ddd6fe" stroke-width="1"/>
+    <text x="738" y="275" font-size="10.5" font-weight="700" fill="#6d28d9">Hard Timeout +</text>
+    <text x="738" y="290" font-size="10.5" fill="#5b21b6">Instant Fallback</text>
+    <text x="738" y="305" font-size="10.5" fill="#5b21b6">Guard (A always</text>
+    <text x="738" y="320" font-size="10.5" fill="#5b21b6">wins on timeout)</text>
+    <text x="738" y="335" font-size="10.5" fill="#5b21b6"> </text>
+  </g>
+
+  <!-- ============ STAGE 5 ============ -->
+  <g filter="url(#cardShadow)">
+    <rect x="846" y="64" width="192" height="296" rx="12" fill="#ffffff" stroke="#c7d2fe" stroke-width="1.5"/>
+    <rect x="846" y="64" width="192" height="64" rx="12" fill="#6366f1"/>
+    <rect x="846" y="104" width="192" height="24" fill="#6366f1"/>
+    <text x="942" y="86" text-anchor="middle" font-size="11" font-weight="700" fill="#e0e7ff">STAGE 5</text>
+    <text x="942" y="106" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">Lossless Injection</text>
+    <text x="942" y="122" text-anchor="middle" font-size="10.5" font-weight="600" fill="#ffffff" font-style="italic">TextInjector</text>
+  </g>
+  <g font-size="10.8" fill="#334155" text-anchor="middle">
+    <text x="942" y="150">X11: xclip + xdotool</text>
+    <text x="942" y="167">/ XTEST paste</text>
+    <line x1="871" y1="178" x2="1013" y2="178" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="942" y="196">Wayland: wl-copy</text>
+    <text x="942" y="213">+ wtype typing</text>
+    <line x1="871" y1="224" x2="1013" y2="224" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="942" y="242">GUI Ctrl+V vs Terminal</text>
+    <text x="942" y="258">Ctrl+Shift+V detect</text>
+    <rect x="868" y="270" width="148" height="72" rx="8" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1"/>
+    <text x="942" y="287" font-size="10.5" font-weight="700" fill="#4338ca">Atomic clipboard</text>
+    <text x="942" y="302" font-size="10.5" fill="#4338ca">backup &amp; delayed</text>
+    <text x="942" y="317" font-size="10.5" fill="#4338ca">restore — zero</text>
+    <text x="942" y="332" font-size="10.5" fill="#4338ca">data loss</text>
+  </g>
+
+  <!-- Arrows between stages -->
+  <g>
+    <line x1="222" y1="210" x2="232" y2="210" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+    <line x1="426" y1="210" x2="436" y2="210" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+    <line x1="630" y1="210" x2="640" y2="210" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+    <line x1="834" y1="210" x2="844" y2="210" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- ============ MANAGEMENT PLANE ============ -->
+  <g filter="url(#cardShadow)">
+    <rect x="30" y="376" width="1008" height="76" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <circle cx="62" cy="404" r="14" fill="#3b82f6"/>
+    <text x="62" y="409" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">◈</text>
+    <text x="86" y="400" font-size="13.5" font-weight="700" fill="#ffffff">Web Control Center</text>
+    <text x="86" y="419" font-size="11.5" font-weight="400" fill="#93c5fd">http://127.0.0.1:17880</text>
+    <line x1="300" y1="388" x2="300" y2="440" stroke="#334155" stroke-width="1.5"/>
+    <g font-size="11.5" fill="#cbd5e1">
+      <text x="322" y="402"><tspan font-weight="700" fill="#ffffff">Mode Switching</tspan>  ·  PTT / Toggle / Container profiles</text>
+      <text x="322" y="422"><tspan font-weight="700" fill="#ffffff">Container Control</tspan>  ·  vLLM start-stop  ·  <tspan font-weight="700" fill="#ffffff">Live Logs</tspan> &amp; Diagnostics</text>
+    </g>
+    <g font-size="10" font-weight="700" text-anchor="middle">
+      <rect x="830" y="392" width="88" height="24" rx="12" fill="none" stroke="#10b981" stroke-width="1.2"/>
+      <text x="874" y="408" fill="#6ee7b7">● ONLINE</text>
+      <rect x="928" y="392" width="88" height="24" rx="12" fill="#3b82f6"/>
+      <text x="972" y="408" fill="#ffffff">Open UI ↗</text>
+    </g>
+  </g>
+  <!-- dashed connectors from plane to stages -->
+  <g stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.7">
+    <line x1="126" y1="360" x2="126" y2="376"/>
+    <line x1="330" y1="360" x2="330" y2="376"/>
+    <line x1="534" y1="360" x2="534" y2="376"/>
+    <line x1="738" y1="360" x2="738" y2="376"/>
+    <line x1="942" y1="360" x2="942" y2="376"/>
+  </g>
+  <text x="540" y="470" text-anchor="middle" font-size="10.5" fill="#94a3b8">Audio → Hotkeys → ASR → Post-Processing → Injection ······ managed by Web Control Center (management plane)</text>
+</svg>

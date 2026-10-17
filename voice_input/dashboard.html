@@ -88,6 +88,11 @@
   .card .stats { display: flex; flex-wrap: wrap; gap: 6px; }
   .pill { background: #10141c; border: 1px solid var(--border); color: var(--text-dim); border-radius: 7px; padding: 2px 8px; font-size: 11.5px; }
   .card button { margin-top: auto; }
+  /* D 档卡片：说明文字撑开，输入框固定单行高度不被 column flex 拉伸 */
+  #card-opencode .desc { flex: 1; }
+  #card-opencode button { margin-top: 0; }
+  #card-opencode #opencodeSwitch { margin-top: auto; }
+  #opencodeModel { flex: 0 0 auto; height: 38px; width: 100%; min-width: 0; box-sizing: border-box; }
 
   /* 功能行 */
   .row {
