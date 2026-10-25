@@ -35,7 +35,7 @@ Headset services require explicit activation after installation. When both heads
 
 The `voice-input/` module incorporates continuous dictation, whole-utterance accumulation and replay tools from my daily-use version, while retaining configuration initialization, installation and desktop integration improvements from the earlier standalone release. Integration also fixed the safety time limit for uninterrupted speech.
 
-This combined repository is the current maintenance entry point. The [standalone voice repository](https://github.com/jxmao-cn/linux-voice-input) remains available as the earlier release. See [migration notes](docs/migration.md) for the source relationship.
+Voice input is now maintained in this combined repository. The former standalone project has been retired, and its commit history is preserved here. See [migration notes](docs/migration.md) for the source relationship.
 
 ## Configuration and personal data
 

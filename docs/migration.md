@@ -7,14 +7,14 @@ The voice module combines two pre-existing working directories. Its feature sour
 | Source or destination | Role in the migration |
 | --- | --- |
 | The original daily-use directory named `voice-input`, outside this repository | Source of the newer capture pipeline, whole-utterance dictation, accumulator tests and session replay tool |
-| The standalone `linux-voice-input` checkout, at `47264ac` | Earlier public release; source of the release history, example configuration, deployment initialization and desktop integration |
+| The former standalone `linux-voice-input` checkout, at `47264ac` | Earlier public release; source of the release history, example configuration, deployment initialization and desktop integration |
 | This repository's `voice-input/` | Combined, maintained module: newer daily-use features, retained deployment improvements, plus the integration-time safety fix |
 
 In the combined version, uninterrupted speech is checked against the hard safety limit before the soft duration target. This fixes a branch-order problem in the daily-use accumulator, where continuous speech could prevent the hard-limit branch from running. Its regression test verifies that consecutive emitted segments contain the original samples without gaps or duplication.
 
 The audio capture implementation and replay tool were imported from the daily-use directory. Public defaults use the system microphone and disable LLM correction until configured. Personal settings, model files, logs and recordings are kept outside version control.
 
-The initial combination is recorded in commit `fc04241`. The old [standalone repository](https://github.com/jxmao-cn/linux-voice-input) remains available as the earlier release; ongoing combined development belongs here.
+The initial combination is recorded in commit `fc04241`. The standalone project has been retired; its release history remains in this repository. Ongoing combined development belongs here.
 
 ### Switching a local installation
 
