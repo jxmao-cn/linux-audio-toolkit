@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   voice-input:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -18,8 +18,8 @@ jobs:
       run:
         working-directory: voice-input
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install headless test dependencies
@@ -39,9 +39,9 @@ jobs:
           python -c "import main, importlib.resources; assert importlib.resources.files('voice_input').joinpath('dashboard.html').is_file()"
 
   gm400:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - name: Shell syntax
         run: find headsets/gm400 -name '*.sh' -exec sh -n '{}' \;
       - name: Simulated recovery and installation tests

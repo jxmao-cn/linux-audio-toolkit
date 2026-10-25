@@ -1,5 +1,8 @@
 #!/bin/sh
 set -eu
+# Installation assertions below use a staged /home/test. Do not inherit the
+# runner's real XDG directories or a caller's staging root.
+unset XDG_CONFIG_HOME XDG_BIN_HOME DESTDIR
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"; [ -z "${stage:-}" ] || rm -rf "$stage"' EXIT HUP INT TERM
