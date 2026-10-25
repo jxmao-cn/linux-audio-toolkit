@@ -13,6 +13,9 @@
 #   ./run.sh dashboard [port]   后台启动图形化管理面板（默认端口取 config.yaml）
 #   ./run.sh dashboard-stop     停止图形化管理面板
 #   ./run.sh mode <档>          快捷切换纠错档：off | local_qwen | deepseek | opencode
+#   ./run.sh install-autostart  安装登录自启（XDG autostart，用于 X11 图形会话）
+#   ./run.sh uninstall-autostart 卸载登录自启
+#   ./run.sh autostart          登录自启入口（由安装的 .desktop 调用）
 # -----------------------------------------------------------------------------
 # 本脚本不写死任何绝对路径：项目目录由脚本自身位置推导，Python 解释器自动
 # 在 conda / miniconda3 / anaconda3 / mambaforge 中查找名为 voice-input 的环境，
@@ -28,6 +31,8 @@ LOGFILE="$PROJECT_DIR/voice-input.log"
 CONFIG="$PROJECT_DIR/config.yaml"
 DASH_PIDFILE="${VOICE_INPUT_DASHBOARD_PIDFILE:-/tmp/voice-input-dashboard.pid}"
 DASH_LOG="$PROJECT_DIR/dashboard.log"
+AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+AUTOSTART_LOG="$PROJECT_DIR/autostart.log"
 
 cd "$PROJECT_DIR" || { echo "找不到项目目录: $PROJECT_DIR" >&2; exit 1; }
 
@@ -201,6 +206,22 @@ do_test_unit() {
     "$PYTHON" "$PROJECT_DIR/tests/test_utterance_accumulator.py"
 }
 
+do_autostart() {
+    # 登录自启入口：图形会话刚起来时音频服务 / USB 麦克风可能尚未就绪，
+    # 因此先等待再启动，失败则重试（最多约 35 秒）。由安装的 .desktop 调用。
+    local i
+    for i in 1 2 3 4 5; do
+        sleep 4
+        if do_start >>"$AUTOSTART_LOG" 2>&1; then
+            echo "$(date '+%F %T') 自启成功（第 ${i} 次尝试）" >>"$AUTOSTART_LOG"
+            return 0
+        fi
+        echo "$(date '+%F %T') 第 ${i} 次自启失败，稍后重试" >>"$AUTOSTART_LOG"
+    done
+    echo "$(date '+%F %T') 自启失败：重试 5 次仍未就绪" >>"$AUTOSTART_LOG"
+    return 1
+}
+
 # --------------------------------------------------------------------------- #
 # 图形化管理面板
 # --------------------------------------------------------------------------- #
@@ -304,6 +325,36 @@ do_install_desktop() {
     return 0
 }
 
+do_install_autostart() {
+    local src="$PROJECT_DIR/voice-input-autostart.desktop.in"
+    local dest="$AUTOSTART_DIR/voice-input.desktop"
+
+    if [ ! -f "$src" ]; then
+        echo "找不到登录自启模板：$src" >&2
+        return 1
+    fi
+
+    mkdir -p "$AUTOSTART_DIR" || return 1
+    # ~/.config/autostart 里的条目无法像 %k 那样反查仓库位置，安装时写入绝对路径。
+    sed "s|@PROJECT_DIR@|$PROJECT_DIR|g" "$src" > "$dest"
+    chmod +x "$dest"
+    echo "✅ 已安装登录自启：$dest"
+    echo "   Exec=$PROJECT_DIR/run.sh autostart"
+    echo "   下次登录图形会话时生效；现在要启动请用 ./run.sh start"
+    return 0
+}
+
+do_uninstall_autostart() {
+    local dest="$AUTOSTART_DIR/voice-input.desktop"
+    if [ -f "$dest" ]; then
+        rm -f "$dest"
+        echo "✅ 已移除登录自启：$dest"
+    else
+        echo "未安装登录自启（$dest 不存在）。"
+    fi
+    return 0
+}
+
 usage() {
     cat <<'EOF'
 voice-input 管理脚本
@@ -323,6 +374,9 @@ voice-input 管理脚本
   dashboard-stop   停止图形化管理面板
   mode <档位>      快捷切换纠错档：off（纯本地规则）| local_qwen（本地千问）| deepseek（云端）| opencode（OpenCode 免费）
   install-desktop  安装桌面入口到 ~/.local/share/applications/
+  install-autostart   安装登录自启到 ~/.config/autostart/（X11 图形会话）
+  uninstall-autostart 卸载登录自启
+  autostart        登录自启入口（由 install-autostart 生成的 .desktop 调用）
 EOF
 }
 
@@ -341,6 +395,9 @@ case "${1:-}" in
     dashboard-stop) do_dashboard_stop ;;
     mode)           shift; do_mode "$@" ;;
     install-desktop) do_install_desktop ;;
+    install-autostart)   do_install_autostart ;;
+    uninstall-autostart) do_uninstall_autostart ;;
+    autostart)           do_autostart ;;
     ""|help|-h|--help) usage ;;
     *)       echo "未知命令：$1" >&2; usage >&2; exit 1 ;;
 esac

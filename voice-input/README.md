@@ -49,6 +49,17 @@ cd voice-input
 
 `test-unit` 运行不需要麦克风或模型的逻辑单测；`test` 会运行端到端自检，并可能访问当前音频/桌面环境。
 
+### 登录自启（可选）
+
+希望登录后不用手动 `./run.sh start`，可以安装 XDG autostart 入口：
+
+```bash
+./run.sh install-autostart     # 写入 ~/.config/autostart/voice-input.desktop
+./run.sh uninstall-autostart   # 移除该入口
+```
+
+安装时会把 `voice-input-autostart.desktop.in` 中的 `@PROJECT_DIR@` 渲染成当前项目的绝对路径，因此仓库移动后需要重新安装。`run.sh autostart` 会先等待几秒让登录会话和音频服务就绪，启动失败会重试，结果记录在 `autostart.log`。该入口依赖 X11 全局热键和登录会话的音频服务，主要用于 X11 桌面（如 GNOME on Xorg）。
+
 ## 配置与隐私
 
 `config.example.yaml` 是可提交的模板。真实 API 凭据应仅放在本地 `config.yaml`，不要提交该文件。会话录音默认关闭；仅在明确配置 `audio.session_dump_dir` 时写入 WAV 文件，请妥善处理这些录音。

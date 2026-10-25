@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Voice Input
+Name[zh_CN]=语音输入
+Comment=Start the voice-input dictation daemon after login
+Comment[zh_CN]=登录后自动启动语音输入守护进程（等待音频会话就绪，失败自动重试）
+# 由 ./run.sh install-autostart 渲染，Exec 写入当前项目的绝对路径。
+Exec=@PROJECT_DIR@/run.sh autostart
+Icon=audio-input-microphone
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

@@ -49,6 +49,17 @@ Common commands:
 
 `test-unit` runs logic tests without a microphone or model. `test` runs an end-to-end self-check and may access the current audio or desktop environment.
 
+### Start on login (optional)
+
+To avoid running `./run.sh start` after every login, install an XDG autostart entry:
+
+```bash
+./run.sh install-autostart     # writes ~/.config/autostart/voice-input.desktop
+./run.sh uninstall-autostart   # removes it
+```
+
+The installer renders `@PROJECT_DIR@` in `voice-input-autostart.desktop.in` to the project's absolute path, so reinstall after moving the repository. `run.sh autostart` waits for the login session and audio service, retries on failure, and records the outcome in `autostart.log`. The entry relies on X11 global hotkeys and the session audio service; it targets X11 desktops such as GNOME on Xorg.
+
 ## Configuration and privacy
 
 `config.example.yaml` is the tracked template. Keep real API credentials only in the local `config.yaml` and do not commit that file. Session audio dumping is disabled by default; WAV files are written only when `audio.session_dump_dir` is explicitly configured.
