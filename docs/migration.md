@@ -16,4 +16,6 @@ The module packages an existing user-level watcher and makes installation reprod
 
 ## AirPods
 
-The reserved path is `headsets/airpods/`. No code from its separate working directory is copied in this release. Follow the [integration contract](architecture.md) once that work is ready.
+AirPods is now included under `headsets/airpods/`. The import uses the tracked project files from the original local `airpodsd` repository at baseline commit `de42859`, plus its subsequent working-tree fixes for PulseAudio profile aliases and delayed HFP input creation. Personal documents, local pairing/configuration/state, logs, build artifacts and unrelated untracked files are excluded. Its MIT license is retained in the module.
+
+The original source checkout and installed daemon are retained. Installing the monorepo copy is a separate user action. The installer defaults to writing files without enabling the service; replacement of a different existing unit requires `--replace-unit` and keeps a backup. Use the same Python environment for installation and uninstallation. See the [AirPods README](../headsets/airpods/README.md) and [architecture](architecture.md).

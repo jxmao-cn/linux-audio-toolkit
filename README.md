@@ -8,7 +8,7 @@ Linux 桌面的耳机接入与语音输入工具集。设备接入层负责让�
 | --- | --- | --- |
 | [Voice Input](voice-input/README.md) | SenseVoice 本地识别、按住说话、连续听写、可选 LLM 纠错与管理面板 | 收录本机后续修改，包含整段语音累积和离线回放 |
 | [HECATE GM400](headsets/gm400/README.md) | USB 声卡延迟就绪后的 PulseAudio 发现与恢复 | watcher、用户服务、安装与卸载工具 |
-| AirPods | 蓝牙配对、连接与音频模式管理 | 尚未收录；后续集成约定见 [架构说明](docs/architecture.md) |
+| [AirPods / airpodsd](headsets/airpods/README.zh-CN.md) | 蓝牙配对、自动重连、电量与 A2DP/HFP 管理 | 已合入 profile 名称兼容及 HFP 输入源重试修复 |
 
 ## 开始使用
 
@@ -25,7 +25,7 @@ GM400 的安装方式、服务启动方式及恢复动作见 [模块说明](head
 
 - 从 `voice-input/config.example.yaml` 生成个人 `config.yaml`；个人配置、密钥、模型、日志和录音不提交。
 - 默认关闭 LLM：ASR 与规则清洗在本机执行。启用云端纠错或 OpenCode CLI 后，识别文本会发往所选服务，整条链路不再是离线运行。
-- GM400 watcher 可以改变系统默认输入输出；语音输入也可以通过配置优先选择特定设备。
+- GM400 watcher 可以改变系统默认输入输出；AirPods 设为 HFP 时会选择其默认输入源。两者同时连接时请明确选择设备策略，见 [架构说明](docs/architecture.md)。语音输入也可配置优先设备。
 - 管理面板默认监听 `127.0.0.1`，可管理本机进程与可选模型容器，仅供可信的本机用户使用。
 
 ## 开发与验证
@@ -39,7 +39,14 @@ cd ../headsets/gm400
 ./tests/run.sh
 ```
 
-CI 检查 Python 单元测试与 shell 脚本。通过这些检查只说明离线逻辑通过；实体设备、不同桌面和音频后端仍需要实机验证。
+AirPods 开发测试从仓库根目录执行：
+
+```bash
+cd headsets/airpods
+PYTHONPATH=src python -m unittest discover -s tests -t . -v
+```
+
+CI 检查两个 Python 模块的单元测试、打包与 shell 脚本。通过这些检查只说明离线逻辑通过；实体设备、不同桌面和音频后端仍需要实机验证。
 
 ## 来源与迁移
 

@@ -8,7 +8,7 @@ A modular Linux desktop toolkit for headset integration and voice typing. Headse
 | --- | --- | --- |
 | [Voice Input](voice-input/README_EN.md) | Local SenseVoice ASR, push-to-talk, continuous dictation, optional correction and control panel | Includes subsequent local changes, whole-utterance accumulation and offline replay |
 | [HECATE GM400](headsets/gm400/README_EN.md) | PulseAudio discovery and recovery after delayed USB initialization | Watcher, user service and installation tools included |
-| AirPods | Bluetooth pairing, connection and audio profiles | Not included yet; see the [integration contract](docs/architecture.md) |
+| [AirPods / airpodsd](headsets/airpods/README.md) | Bluetooth pairing, reconnect, battery and A2DP/HFP management | Includes profile-name compatibility and delayed HFP input retries |
 
 ## Quick start
 
@@ -27,7 +27,7 @@ Personal configuration, API keys, model weights, recordings and logs are exclude
 
 LLM correction is disabled by default. ASR and rules run locally; cloud correction or OpenCode CLI sends recognized text to the selected provider. The entire pipeline is then no longer offline.
 
-The control panel defaults to loopback (`127.0.0.1`) and can manage local processes and optional model containers. Use it only in a trusted local session. The GM400 watcher can change default audio devices and perform the recovery actions documented by that module.
+The control panel defaults to loopback (`127.0.0.1`) and can manage local processes and optional model containers. Use it only in a trusted local session. The GM400 watcher can change default audio devices; the AirPods daemon selects a default input in HFP mode. Choose a device policy when both are connected; see [architecture](docs/architecture.md).
 
 ## Validation
 
@@ -37,6 +37,13 @@ python -m unittest discover -s tests -v
 python tests/test_utterance_accumulator.py
 cd ../headsets/gm400
 ./tests/run.sh
+```
+
+Run AirPods tests separately from the repository root:
+
+```bash
+cd headsets/airpods
+PYTHONPATH=src python -m unittest discover -s tests -t . -v
 ```
 
 Use a Python 3.10+ development environment with the module dependencies installed. Headless tests require neither a microphone nor ASR models. CI validates offline logic; physical devices and desktop/backend combinations require separate hardware testing.

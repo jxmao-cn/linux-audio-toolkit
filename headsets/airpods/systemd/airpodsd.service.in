@@ -1,0 +1,13 @@
+[Unit]
+Description=airpodsd — AirPods userspace driver for Linux
+
+[Service]
+Type=simple
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=@EXEC@
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=90
+
+[Install]
+WantedBy=default.target
