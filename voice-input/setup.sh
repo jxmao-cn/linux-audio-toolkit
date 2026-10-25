@@ -204,15 +204,6 @@ else
     fi
 fi
 
-# 默认删除冗余的未量化 model.onnx（约 895MB），仅保留 model.int8.onnx 与 tokens.txt；
-# 如需保留完整 FP32 模型，设置 KEEP_FP32_MODEL=1。
-if [ "${KEEP_FP32_MODEL:-0}" != "1" ]; then
-    if [ -f "$SENSEVOICE_DIR/model.onnx" ]; then
-        rm -f "$SENSEVOICE_DIR/model.onnx"
-        info "已删除冗余 FP32 模型 model.onnx 以节省磁盘（保留 model.int8.onnx 与 tokens.txt）。"
-    fi
-fi
-
 # --------------------------------------------------------------------------- #
 # 6. 自检
 # --------------------------------------------------------------------------- #

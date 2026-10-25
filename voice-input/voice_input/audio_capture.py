@@ -21,6 +21,13 @@
    重新发现 source 并重建后端；预卷环形缓冲在录音开始前一直滚动，
    这样 PTT 模式可以补回按下按键之前的 ``pre_roll_ms`` 音频，避免吞首字。
 
+5. **连续听写"整段累积"**：toggle 模式的 VAD 只用来找"停顿"，不再一断句就
+   立刻识别。相邻 VAD 段之间的短停顿（说长句时换气的零点几秒到一点几秒）
+   会被并回同一段音频，等**真正说完**（静音达到 ``commit_silence_duration``）
+   才把累积的连续音频**一次性**送去识别。这样 SenseVoice 拿到的是整句
+   上下文，而不是几秒钟一个的碎片；单段上限 ``max_utterance_seconds`` 保证
+   延迟与内存有界，且到上限时优先在自然停顿处切分。
+
 对外接口
 ========
 
@@ -33,6 +40,7 @@ from __future__ import annotations
 import logging
 import os
 import queue
+import select
 import shutil
 import subprocess
 import threading
@@ -42,6 +50,8 @@ from math import gcd
 from typing import Callable, List, Optional
 
 import numpy as np
+
+from .utterance_accumulator import AccumulatorConfig, UtteranceAccumulator
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +70,30 @@ MIN_RMS_SPEECH_SECONDS = 0.20
 # 单句最长时长，超过则强制切断，避免内存无限增长。
 MAX_UTTERANCE_SECONDS = 30.0
 
+# --------------------------------------------------------------------------- #
+# 连续听写（Toggle）"整段累积"参数
+# --------------------------------------------------------------------------- #
+# 判定逻辑全部在 voice_input/utterance_accumulator.py（纯逻辑 + 单测），
+# 这里只保留构造它所需的默认值和"采集侧"参数。
+DEFAULT_COMMIT_SILENCE_SEC = 1.6
+DEFAULT_MAX_UTTERANCE_SEC = 20.0
+
+# 固定最小可听门限 = AUDIBLE_MIN_RATIO * energy_threshold：
+# 起句与"是否属于敲击噪声"的兜底判据（不随环境自适应，避免漏收轻声语音）。
+AUDIBLE_MIN_RATIO = 0.25
+
 # 采集后端无数据后重连前的等待时间（秒）。
 RECONNECT_DELAY_S = 0.3
+
+# 单次管道读取的最长等待（秒）：超过则认为采集链路已卡死（USB 挂起 /
+# PulseAudio 设备休眠），由上层重连。
+STREAM_READ_TIMEOUT_S = 1.0
+
+# 判定"数字静音"（设备挂起 / 通道断开时常见）的块峰值门限。
+DIGITAL_SILENCE_PEAK = 1e-5
+
+# 连续数字静音达到该时长就强制重连采集后端。
+DEAD_STREAM_SECONDS = 8.0
 
 
 # --------------------------------------------------------------------------- #
@@ -300,11 +332,30 @@ class _ParecordBackend(_BaseBackend):
         self._stderr = self._proc.stderr
 
     def _read_exact(self, nbytes: int) -> Optional[bytes]:
-        """从管道精确读取 ``nbytes`` 字节；EOF 时返回 ``None``。"""
+        """从管道读取 ``nbytes`` 字节；EOF / 卡死时返回 ``None``。
+
+        用 ``select`` + ``os.read`` 而不是阻塞式 ``read``：这样即使设备被
+        挂起、管道卡住，也能在 ``STREAM_READ_TIMEOUT_S`` 后放弃并让上层重连，
+        不会让采集线程永久卡死（表现为"录音没反应 / 丢内容"）。
+        """
         chunks: List[bytes] = []
         remaining = nbytes
+        fd = self._stdout.fileno()
         while remaining > 0:
-            data = self._stdout.read(remaining)
+            try:
+                ready, _, _ = select.select([fd], [], [], STREAM_READ_TIMEOUT_S)
+            except Exception:  # noqa: BLE001 - select 失败则退回阻塞读
+                ready = [fd]
+            if not ready:
+                logger.warning(
+                    "parecord %.1fs 无数据（设备休眠 / 管道阻塞），按断流处理并重连",
+                    STREAM_READ_TIMEOUT_S,
+                )
+                return None
+            try:
+                data = os.read(fd, remaining)
+            except (BlockingIOError, InterruptedError):
+                continue
             if not data:
                 if self._proc.poll() is not None:
                     err = b""
@@ -515,7 +566,13 @@ class AudioCapture:
         vad_model_path: Silero VAD (``sherpa_onnx``) 模型路径；为 ``None``
             或文件不存在时，toggle 模式退化为 RMS 能量端点检测。
         vad_threshold: Silero VAD 语音概率阈值。
-        min_silence_duration: 判定一句结束所需的静音时长（秒）。
+        min_silence_duration: VAD 判定"一个停顿"所需的最短静音（秒），
+            也是"整段累积"里判定停顿的粒度。
+        commit_silence_duration: 连续听写里判定"这句说完了、可以整体识别"
+            所需的静音时长（秒）。比 ``min_silence_duration`` 大，正是为了让
+            说长句时的换气停顿不被切成碎片。默认 1.6s。
+        max_utterance_seconds: 单次整段识别的最长语音时长（秒）。达到后在
+            最近一次自然停顿处提交，避免延迟与内存无限增长。默认 20s。
         native_sample_rate: 采集后端的原生采样率，默认 48000。
         native_channels: 采集后端的原生声道数，默认 2。
         energy_threshold: RMS 兜底 VAD 的语音能量阈值（float32 归一化后）。
@@ -530,10 +587,13 @@ class AudioCapture:
         vad_model_path: Optional[str] = None,
         vad_threshold: float = 0.45,
         min_silence_duration: float = 0.6,
+        commit_silence_duration: float = DEFAULT_COMMIT_SILENCE_SEC,
+        max_utterance_seconds: float = DEFAULT_MAX_UTTERANCE_SEC,
         native_sample_rate: int = 48000,
         native_channels: int = 2,
         energy_threshold: float = 0.012,
         prefer_parecord: bool = True,
+        session_dump_dir: Optional[str] = None,
     ) -> None:
         self.preferred_device_substring = preferred_device_substring
         self.target_sample_rate = int(target_sample_rate)
@@ -541,10 +601,23 @@ class AudioCapture:
         self.vad_model_path = vad_model_path
         self.vad_threshold = float(vad_threshold)
         self.min_silence_duration = float(min_silence_duration)
+        self.commit_silence_duration = float(commit_silence_duration)
+        self.max_utterance_seconds = float(max_utterance_seconds)
+        if self.commit_silence_duration < self.min_silence_duration:
+            logger.warning(
+                "commit_silence_duration(%.2fs) 小于 min_silence_duration(%.2fs)，"
+                "已按 %.2fs 处理（否则一整段会被拆成碎片）",
+                self.commit_silence_duration,
+                self.min_silence_duration,
+                self.min_silence_duration,
+            )
+            self.commit_silence_duration = self.min_silence_duration
         self.native_sample_rate = int(native_sample_rate)
         self.native_channels = int(native_channels)
         self.energy_threshold = float(energy_threshold)
         self.prefer_parecord = bool(prefer_parecord)
+        # 非空时把每次录音的原始音频写成 wav（供 tools/session_replay.py 确定性重放）。
+        self.session_dump_dir = session_dump_dir or None
 
         self._pre_roll_samples = max(
             0, int(self.pre_roll_ms / 1000.0 * self.target_sample_rate)
@@ -566,10 +639,16 @@ class AudioCapture:
         # toggle 模式的端点检测状态。
         self._vad = None
         self._vad_failed = False
-        self._speech_active = False
-        self._silence_seconds = 0.0
-        self._utt_chunks: List[np.ndarray] = []
-        self._utt_samples = 0
+        self._vad_flag_ok = True  # sherpa_onnx 是否支持 is_speech_detected()
+        # 整段累积器：所有"什么时候算说完 / 该不该丢"的判定都在这个纯逻辑模块里
+        # （单测：tests/test_utterance_accumulator.py）。
+        self._acc = UtteranceAccumulator(self._build_accumulator_config())
+        # 采集链路健康检查状态（详见 _check_stream_health_locked）。
+        self._dead_seconds = 0.0
+        self._dead_reconnect_done = False
+        self._ever_had_audio = False
+        # 可选的原始音频落盘缓冲（调试用，默认关闭）。
+        self._dump_chunks: List[np.ndarray] = []
 
         # 采集后端与线程。
         self._backend: Optional[_BaseBackend] = None
@@ -580,12 +659,14 @@ class AudioCapture:
 
         logger.info(
             "AudioCapture 初始化：device_substr=%s target=%dHz pre_roll=%dms "
-            "vad_model=%s min_silence=%.2fs",
+            "vad_model=%s min_silence=%.2fs commit_silence=%.2fs max_utterance=%.1fs",
             self.preferred_device_substring,
             self.target_sample_rate,
             self.pre_roll_ms,
             self.vad_model_path or "（无，使用 RMS）",
             self.min_silence_duration,
+            self.commit_silence_duration,
+            self.max_utterance_seconds,
         )
 
         # 启动采集线程（best-effort），让预卷环形缓冲先滚动起来。
@@ -735,18 +816,74 @@ class AudioCapture:
         emissions: List[np.ndarray] = []
 
         with self._lock:
+            # 起句时要并入"本块之前"的预卷音频：必须在把当前块压入环形缓冲**之前**
+            # 取快照，否则当前块会被重复计入（32ms 重复会破坏音频连续性）。
+            prefix = None
+            if (
+                self._recording
+                and self._mode == "toggle"
+                and not self._acc.active
+            ):
+                prefix = self._ring_snapshot_locked()
+
             self._push_ring_locked(block)
+            if self._dump_chunks is not None and self._recording and self.session_dump_dir:
+                self._dump_chunks.append(block)
 
             if not self._recording:
                 return
 
+            self._check_stream_health_locked(block)
+
             if self._mode == "ptt":
                 self._record_chunks.append(block)
             else:
-                self._handle_toggle_locked(block, emissions)
+                self._handle_toggle_locked(block, prefix, emissions)
 
         for samples in emissions:
             self._emit_utterance(samples)
+
+    def _check_stream_health_locked(self, block: np.ndarray) -> None:
+        """采集链路健康检查（调用方持锁，仅录音期间执行）。
+
+        真实麦克风总有一点底噪。若**本次录音里已经采到过正常电平**，之后却连续
+        ``DEAD_STREAM_SECONDS`` 收到"数字静音"（峰值 ~0），基本可以断定设备被
+        挂起 / 通道断开（USB 自动挂起、PulseAudio 休眠等），音频会整段丢失。
+        这种情况下主动强制重连一次后端，避免"说了一长串却什么都没录到"。
+        每个录音会话最多触发一次，防止反复重连。
+        """
+        peak = float(np.max(np.abs(block))) if block.size else 0.0
+        if peak < DIGITAL_SILENCE_PEAK:
+            self._dead_seconds += block.size / float(self.target_sample_rate)
+        else:
+            self._dead_seconds = 0.0
+            self._ever_had_audio = True
+
+        if self._dead_reconnect_done or not self._ever_had_audio:
+            return
+        if self._dead_seconds < DEAD_STREAM_SECONDS:
+            return
+
+        self._dead_reconnect_done = True
+        self._dead_seconds = 0.0
+        logger.warning(
+            "采集链路疑似异常：录音期间连续 %.1fs 收到全静音（峰值 < %.0e），"
+            "强制重连音频后端（USB 挂起 / 设备休眠常见现象）",
+            DEAD_STREAM_SECONDS,
+            DIGITAL_SILENCE_PEAK,
+        )
+        self._force_reconnect_locked()
+
+    def _force_reconnect_locked(self) -> None:
+        """关闭当前采集后端，让采集线程重新发现设备并重建（调用方持锁）。"""
+        backend = self._backend
+        self._backend = None
+        if backend is not None:
+            try:
+                backend.close()
+            except Exception:  # noqa: BLE001
+                logger.debug("强制重连时关闭后端异常", exc_info=True)
+
 
     def _push_ring_locked(self, block: np.ndarray) -> None:
         """维护预卷环形缓冲（调用方需持锁）。"""
@@ -759,16 +896,37 @@ class AudioCapture:
         return list(self._ring)
 
     def _handle_toggle_locked(
-        self, block: np.ndarray, emissions: List[np.ndarray]
+        self,
+        block: np.ndarray,
+        prefix: Optional[List[np.ndarray]],
+        emissions: List[np.ndarray],
     ) -> None:
-        """toggle 模式的端点检测（调用方需持锁）。"""
+        """toggle 模式：用 VAD 给出"是否语音 / 是否停顿边界"，其余交给整段累积器。"""
         vad = self._get_vad_locked()
+        vad_speech = False
+        vad_boundary = False
         if vad is not None:
-            self._handle_toggle_sherpa_locked(vad, block, emissions)
-        else:
-            self._handle_toggle_rms_locked(block, emissions)
+            vad_speech, vad_boundary = self._vad_observe_locked(vad, block)
+        self._accumulate_locked(block, vad_speech, vad_boundary, prefix, emissions)
 
-    # ---- Silero VAD (sherpa_onnx) ------------------------------------ #
+    def _accumulate_locked(
+        self,
+        block: np.ndarray,
+        vad_speech: bool,
+        vad_boundary: bool,
+        prefix: Optional[List[np.ndarray]],
+        emissions: List[np.ndarray],
+    ) -> None:
+        """把本块交给整段累积器，并把产出的整段交给回调（调用方持锁）。"""
+        for utterance in self._acc.push(
+            block,
+            vad_speech=vad_speech,
+            vad_boundary=vad_boundary,
+            prefix=prefix,
+        ):
+            logger.info(utterance.describe())
+            emissions.append(utterance.samples)
+
     def _get_vad_locked(self):  # noqa: ANN202
         """惰性构建 sherpa_onnx VAD 对象；失败则永久退化为 RMS（持锁）。"""
         if self._vad is not None or self._vad_failed:
@@ -789,7 +947,10 @@ class AudioCapture:
             silero.threshold = float(self.vad_threshold)
             silero.min_silence_duration = float(self.min_silence_duration)
             silero.min_speech_duration = float(MIN_RMS_SPEECH_SECONDS)
-            silero.max_speech_duration = float(MAX_UTTERANCE_SECONDS)
+            # VAD 内部的强制切断点：留出余地，让"整段累积"优先在自然停顿处切分。
+            silero.max_speech_duration = float(
+                max(MAX_UTTERANCE_SECONDS, self.max_utterance_seconds + 10.0)
+            )
             silero.window_size = int(SILERO_WINDOW_FRAMES)
             config.sample_rate = int(self.target_sample_rate)
 
@@ -800,6 +961,13 @@ class AudioCapture:
             except TypeError:
                 # 兼容旧版 API（无 buffer_size_in_seconds 参数）。
                 self._vad = sherpa_onnx.VoiceActivityDetector(config)
+            # 旧版 sherpa-onnx 没有 is_speech_detected()：此时只用 RMS 判定语音，
+            # 不能让"VAD 段边界"参与静音计时（会重复计数）。
+            self._vad_flag_ok = callable(getattr(self._vad, "is_speech_detected", None))
+            if not self._vad_flag_ok:
+                logger.warning(
+                    "当前 sherpa-onnx 无 is_speech_detected()，整段累积改用 RMS 能量判定语音"
+                )
             logger.info("已启用 Silero VAD（sherpa_onnx）：%s", self.vad_model_path)
             return self._vad
         except Exception as exc:  # noqa: BLE001
@@ -808,58 +976,46 @@ class AudioCapture:
             self._vad = None
             return None
 
-    def _handle_toggle_sherpa_locked(
-        self, vad, block: np.ndarray, emissions: List[np.ndarray]
-    ) -> None:
+    def _vad_observe_locked(self, vad, block: np.ndarray):
+        """让 VAD 看一眼本块，返回 ``(是否语音, 是否有段边界)``（调用方持锁）。
+
+        VAD 只当传感器用：段音频本身不采用（连续音频由累积器自己维护，
+        避免拼接缝隙），仅提供"语音 / 停顿 / 段边界"三个信息。
+        """
         try:
             vad.accept_waveform(np.ascontiguousarray(block, dtype=np.float32))
+            # 先读语音标记（反映本块处理后的判定），再把段队列清空（防止内存增长）。
+            flag = getattr(vad, "is_speech_detected", None)
+            vad_speech = bool(flag()) if self._vad_flag_ok and callable(flag) else False
+            boundary = False
             while not vad.empty():
-                segment = vad.front
-                samples = np.asarray(segment.samples, dtype=np.float32)
                 vad.pop()
-                if samples.size > 0:
-                    emissions.append(samples)
+                boundary = True
+            if not self._vad_flag_ok:
+                # 旧版 sherpa-onnx 没有语音标记：此时"段边界"不能参与静音计时
+                # （会把静音重复算两次），只用它做强制切分点。
+                vad_speech = False
+            return vad_speech, boundary
         except Exception as exc:  # noqa: BLE001
             logger.warning("Silero VAD 处理失败，退化为 RMS：%s", exc)
             self._vad = None
             self._vad_failed = True
-            self._handle_toggle_rms_locked(block, emissions)
+            return False, False
 
-    # ---- RMS 能量 VAD ------------------------------------------------- #
-    def _handle_toggle_rms_locked(
-        self, block: np.ndarray, emissions: List[np.ndarray]
-    ) -> None:
-        rms = float(np.sqrt(np.mean(np.square(block)) + 1e-12))
-        is_speech = rms >= self.energy_threshold
-        block_seconds = block.size / float(self.target_sample_rate)
+    def _build_accumulator_config(self) -> AccumulatorConfig:
+        """把采集侧配置翻译成整段累积器的配置（判定逻辑见该模块文档）。"""
+        return AccumulatorConfig(
+            sample_rate=self.target_sample_rate,
+            commit_silence_sec=self.commit_silence_duration,
+            max_utterance_sec=self.max_utterance_seconds,
+            min_silence_sec=self.min_silence_duration,
+            min_level=AUDIBLE_MIN_RATIO * self.energy_threshold,
+        )
 
-        if is_speech:
-            if not self._speech_active:
-                # 语音开始：用预卷缓冲补回起始部分，避免吞首字。
-                self._speech_active = True
-                self._silence_seconds = 0.0
-                self._utt_chunks = self._ring_snapshot_locked()
-                self._utt_samples = sum(c.size for c in self._utt_chunks)
-            self._utt_chunks.append(block)
-            self._utt_samples += block.size
-            self._silence_seconds = 0.0
-        elif self._speech_active:
-            self._utt_chunks.append(block)
-            self._utt_samples += block.size
-            self._silence_seconds += block_seconds
-
-            min_speech_samples = int(
-                MIN_RMS_SPEECH_SECONDS * self.target_sample_rate
-            )
-            too_long = self._utt_samples >= MAX_UTTERANCE_SECONDS * self.target_sample_rate
-
-            if self._silence_seconds >= self.min_silence_duration or too_long:
-                if self._utt_samples >= min_speech_samples:
-                    emissions.append(_concat(self._utt_chunks))
-                self._speech_active = False
-                self._silence_seconds = 0.0
-                self._utt_chunks = []
-                self._utt_samples = 0
+    def reset_utterance_state(self) -> None:
+        """清空整段累积状态（开始一次新的连续听写时调用）。"""
+        with self._lock:
+            self._acc.reset_session()
 
     def _emit_utterance(self, samples: np.ndarray) -> None:
         """异步回调一句话音频（不阻塞采集线程）。"""
@@ -887,9 +1043,10 @@ class AudioCapture:
         """开始录音。
 
         Args:
-            mode: ``"ptt"``（按住说话）或 ``"toggle"``（连续听写 + 自动断句）。
-            on_utterance_callback: toggle 模式下每检测到一句结束时调用，
-                入参为 16 kHz float32 一维数组。
+            mode: ``"ptt"``（按住说话）或 ``"toggle"``（连续听写）。
+            on_utterance_callback: toggle 模式下每次"整段说完"（静音达到
+                ``commit_silence_duration``）或整段超过 ``max_utterance_seconds``
+                时调用，入参为 16 kHz float32 一维数组（完整整段音频）。
         """
         if mode not in ("ptt", "toggle"):
             raise ValueError(f"不支持的录音模式：{mode!r}（应为 'ptt' 或 'toggle'）")
@@ -907,10 +1064,12 @@ class AudioCapture:
             self._mode = mode
             self._on_utterance = on_utterance_callback
             self._recording = True
-            self._speech_active = False
-            self._silence_seconds = 0.0
-            self._utt_chunks = []
-            self._utt_samples = 0
+            # 清空整段累积状态与会话统计（判定逻辑在 utterance_accumulator.py）。
+            self._acc.reset_session()
+            self._dump_chunks = []
+            self._dead_seconds = 0.0
+            self._dead_reconnect_done = False
+            self._ever_had_audio = False
 
             if mode == "ptt":
                 # 用预卷环形缓冲初始化，补回按键前的音频。
@@ -968,52 +1127,95 @@ class AudioCapture:
             if was_ptt:
                 audio = _concat(self._record_chunks)
                 self._record_chunks = []
-                self._speech_active = False
-                self._silence_seconds = 0.0
-                self._utt_chunks = []
-                self._utt_samples = 0
             else:
-                # toggle：先 flush Silero VAD，把内部缓冲区里尚未断句的残留语音
-                # 全部取出（否则用户一按结束键就丢掉最后半句话，且残留会在下一次
-                # 开启 Toggle 时突然弹出）；RMS 模式则返回 _utt_chunks 残留。
-                vad = self._vad
-                chunks: List[np.ndarray] = []
-                if vad is not None:
-                    try:
-                        vad.flush()
-                        while not vad.empty():
-                            segment = vad.front
-                            seg = np.asarray(segment.samples, dtype=np.float32)
-                            vad.pop()
-                            if seg.size > 0:
-                                chunks.append(
-                                    np.ascontiguousarray(seg, dtype=np.float32)
-                                )
-                    except Exception:  # noqa: BLE001
-                        logger.warning(
-                            "刷新 Silero VAD 残留缓冲失败，改用 RMS 残留", exc_info=True
-                        )
-                    try:
-                        vad.reset()
-                    except Exception:  # noqa: BLE001
-                        logger.debug("重置 Silero VAD 失败", exc_info=True)
+                # toggle：让累积器交出还没提交的整段（它就是连续音频，不需要
+                # 再拼 VAD 残余段——那部分音频早已包含在内，拼接会重复）。
+                utterance = self._acc.flush()
+                if utterance is not None:
+                    # 这里**不做**"疑似噪声"过滤：会话结尾那半句可能正是用户想说的
+                    # 最后一句，宁可由 ASR 判定（全静音会返回空文本），绝不在此丢内容。
+                    logger.info(utterance.describe())
+                    audio = utterance.samples
                 else:
-                    chunks = list(self._utt_chunks)
-                audio = _concat(chunks)
-                self._speech_active = False
-                self._silence_seconds = 0.0
-                self._utt_chunks = []
-                self._utt_samples = 0
+                    # 兜底：累积器里没有内容（例如全程未触发起句）时退回 VAD 残余段。
+                    audio = self._drain_vad_residue_locked()
+                try:
+                    if self._vad is not None:
+                        self._vad.reset()
+                except Exception:  # noqa: BLE001
+                    logger.debug("重置 Silero VAD 失败", exc_info=True)
+            dump = self._take_dump_locked() if self.session_dump_dir else None
             self._on_utterance = None
+
+        if dump is not None:
+            self._write_dump(dump)
 
         duration = audio.size / float(self.target_sample_rate)
         logger.info(
-            "停止录音：mode=%s 采集 %.3fs（%d 样本）",
+            "停止录音：mode=%s %s %.3fs（%d 样本）",
             "ptt" if was_ptt else "toggle",
+            "采集" if was_ptt else "待提交整段",
             duration,
             audio.size,
         )
+        if not was_ptt:
+            # 会话小结（由累积器统计）：用于事后核对"是不是有内容被丢了"。
+            stats = self._acc.stats
+            logger.info(
+                stats.describe(self._acc.level_floor, self._acc.threshold)
+            )
+            if stats.max_peak < DIGITAL_SILENCE_PEAK:
+                logger.warning(
+                    "本次连续听写采集到的音频几乎全为数字静音（峰值 %.1e）："
+                    "麦克风被挂起 / 静音 / 采集链路异常，请检查音频设备",
+                    stats.max_peak,
+                )
         return audio
+
+    # ------------------------------------------------------------------ #
+    # 可选的原始音频落盘（调试：供 tools/session_replay.py 确定性重放）
+    # ------------------------------------------------------------------ #
+    def _take_dump_locked(self) -> Optional[np.ndarray]:
+        """取出本次录音的原始音频并清空缓冲（调用方持锁）。"""
+        chunks = self._dump_chunks
+        self._dump_chunks = []
+        return _concat(chunks) if chunks else None
+
+    def _write_dump(self, audio: np.ndarray) -> None:
+        """把原始音频写成 16kHz 单声道 16bit wav（失败不影响主流程）。"""
+        import wave
+
+        try:
+            os.makedirs(self.session_dump_dir, exist_ok=True)  # type: ignore[arg-type]
+            name = time.strftime("session-%Y%m%d-%H%M%S.wav")
+            path = os.path.join(self.session_dump_dir, name)  # type: ignore[arg-type]
+            pcm = np.clip(audio, -1.0, 1.0)
+            with wave.open(path, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(self.target_sample_rate)
+                wf.writeframes((pcm * 32767.0).astype("<i2").tobytes())
+            logger.info("本次录音已落盘：%s（%.2fs）", path, audio.size / self.target_sample_rate)
+        except Exception:  # noqa: BLE001
+            logger.warning("录音落盘失败（不影响识别）", exc_info=True)
+
+    def _drain_vad_residue_locked(self) -> np.ndarray:
+        """兜底：flush Silero VAD 并取出内部残留段（调用方持锁）。"""
+        vad = self._vad
+        if vad is None:
+            return np.zeros(0, dtype=np.float32)
+        chunks: List[np.ndarray] = []
+        try:
+            vad.flush()
+            while not vad.empty():
+                segment = vad.front
+                seg = np.asarray(segment.samples, dtype=np.float32)
+                vad.pop()
+                if seg.size > 0:
+                    chunks.append(np.ascontiguousarray(seg, dtype=np.float32))
+        except Exception:  # noqa: BLE001
+            logger.warning("刷新 Silero VAD 残留缓冲失败", exc_info=True)
+        return _concat(chunks)
 
     def close(self) -> None:
         """停止后台线程并释放子进程 / 音频流。"""

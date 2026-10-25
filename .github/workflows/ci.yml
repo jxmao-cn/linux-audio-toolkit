@@ -4,28 +4,45 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  test:
+  voice-input:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.10", "3.12"]
+    defaults:
+      run:
+        working-directory: voice-input
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
-      - name: Install light test dependencies
+      - name: Install headless test dependencies
+        run: python -m pip install numpy scipy pyyaml requests pynput python-xlib
+      - name: Check syntax
         run: |
-          python -m pip install --upgrade pip
-          pip install numpy scipy pyyaml requests pynput python-xlib
+          python -m compileall -q main.py voice_input tests tools
+          bash -n run.sh setup.sh
+      - name: Run headless regression tests
+        run: |
+          python -m unittest discover -s tests -v
+          python tests/test_utterance_accumulator.py
+      - name: Check packaging metadata
+        run: |
+          python -m pip install --no-deps .
+          cd /tmp
+          python -c "import main, importlib.resources; assert importlib.resources.files('voice_input').joinpath('dashboard.html').is_file()"
 
-      - name: Syntax check (py_compile)
-        run: python -m py_compile main.py voice_input/*.py tests/*.py
-
-      - name: Run headless unit tests
-        run: python -m unittest discover -s tests -v
+  gm400:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: find headsets/gm400 -name '*.sh' -exec sh -n '{}' \;
+      - name: Simulated recovery and installation tests
+        run: headsets/gm400/tests/run.sh

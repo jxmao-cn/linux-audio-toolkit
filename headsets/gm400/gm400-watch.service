@@ -1,0 +1,11 @@
+[Unit]
+Description=HECATE GM400 PulseAudio recovery watcher
+After=pulseaudio.service
+
+[Service]
+ExecStart=%h/.local/bin/gm400-watch.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

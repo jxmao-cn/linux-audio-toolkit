@@ -2,8 +2,10 @@
 
 子模块：
 
-* :mod:`voice_input.audio_capture` —— USB 麦克风采集（16 kHz 单声道 float32）
-  与语音端点检测（VAD）。
+* :mod:`voice_input.utterance_accumulator` —— 连续听写"整段累积"判定逻辑
+  （纯逻辑，无麦克风/线程依赖，可单测；不变量与用例见 REVIEW.md）。
+* :mod:`voice_input.audio_capture` —— USB 麦克风采集（16 kHz 单声道 float32）、
+  VAD 传感器与采集链路看门狗。
 * 以及配套的 ASR / 热键 / 文本注入等模块（若存在则一并导出）。
 
 本包聚合导出各子模块的公共符号，任一子模块导入失败都不会影响其他子模块
@@ -12,8 +14,15 @@
 
 # 核心音频采集接口（本模块必备）。
 from .audio_capture import AudioCapture, find_pulse_source
+from .utterance_accumulator import AccumulatorConfig, Utterance, UtteranceAccumulator
 
-__all__ = ["AudioCapture", "find_pulse_source"]
+__all__ = [
+    "AudioCapture",
+    "find_pulse_source",
+    "AccumulatorConfig",
+    "Utterance",
+    "UtteranceAccumulator",
+]
 __version__ = "0.1.0"
 
 

@@ -127,6 +127,11 @@ logger = logging.getLogger("voice-input")
 
 DEFAULT_CONFIG_PATH = os.path.join(PROJECT_DIR, "config.yaml")
 
+# 连续听写（Toggle）"整段累积"默认参数（与 voice_input/audio_capture.py 保持一致，
+# 仅作为配置缺省兜底；config.yaml 的 audio 段是唯一权威来源）。
+DEFAULT_AUDIO_COMMIT_SILENCE_SEC = 1.6
+DEFAULT_AUDIO_MAX_UTTERANCE_SEC = 20.0
+
 # 连续模式结束时，残余语音低于该时长则直接丢弃。
 RESIDUAL_MIN_SEC = 0.25
 
@@ -142,6 +147,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "vad_model_path": "models/silero_vad.onnx",
         "vad_threshold": 0.45,
         "min_silence_duration": 0.6,
+        "commit_silence_duration": 1.6,
+        "max_utterance_seconds": 20.0,
+        "session_dump_dir": "",
     },
     "hotkey": {
         "toggle_key": "ctrl_r",
@@ -191,24 +199,12 @@ def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any
 
 
 def load_config(path: str) -> Dict[str, Any]:
-    """读取 YAML 配置并与默认配置合并（缺失项用默认值补齐。
-
-    若 ``path`` 不存在但同目录下存在 ``config.example.yaml``，
-    则自动复制一份为 ``path``（Git 只追踪模板，用户 Key 永不入库）。
-    """
+    """读取 YAML 配置并与默认配置合并（缺失项用默认值补齐）。"""
     if yaml is None:
         raise RuntimeError(
             "未安装 PyYAML，无法解析配置文件。"
             f"请在 voice-input 环境中 pip install pyyaml（原始错误：{_YAML_IMPORT_ERROR}）"
         )
-    if not os.path.isfile(path):
-        example_path = os.path.join(os.path.dirname(os.path.abspath(path)), "config.example.yaml")
-        if os.path.isfile(example_path):
-            try:
-                shutil.copyfile(example_path, path)
-                logger.info("配置文件不存在，已从模板自动初始化：%s -> %s", example_path, path)
-            except Exception:  # noqa: BLE001 - 复制失败则回退默认配置
-                logger.warning("从模板复制配置文件失败：%s", example_path, exc_info=True)
     if not os.path.isfile(path):
         logger.warning("配置文件不存在，使用内置默认配置：%s", path)
         return _deep_merge(DEFAULT_CONFIG, {})
@@ -308,6 +304,13 @@ class VoiceInputApp:
             vad_model_path=resolve_path(cfg.get("vad_model_path"), self.base_dir),
             vad_threshold=float(cfg["vad_threshold"]),
             min_silence_duration=float(cfg["min_silence_duration"]),
+            commit_silence_duration=float(
+                cfg.get("commit_silence_duration", DEFAULT_AUDIO_COMMIT_SILENCE_SEC)
+            ),
+            max_utterance_seconds=float(
+                cfg.get("max_utterance_seconds", DEFAULT_AUDIO_MAX_UTTERANCE_SEC)
+            ),
+            session_dump_dir=resolve_path(cfg.get("session_dump_dir"), self.base_dir),
         )
         return self.audio
 
@@ -502,7 +505,7 @@ class VoiceInputApp:
         )
         if samples is not None and samples.size >= min_samples:
             logger.info(
-                "[Toggle] 结束，残余未断句语音 %.2fs，送入识别",
+                "[Toggle] 结束，待提交整段语音 %.2fs，送入识别",
                 samples.size / float(self.cfg["audio"]["target_sample_rate"]),
             )
             self._handle_utterance(samples)
@@ -579,6 +582,121 @@ class VoiceInputApp:
         logger.info("voice-input 已退出")
 
 
+def _probe_toggle_merge(
+    audio: AudioCapture, wave_audio: np.ndarray, audio_cfg: Dict[str, Any]
+) -> Dict[str, Any]:
+    """用合成音频验证连续听写的"整段累积"逻辑（不依赖麦克风）。
+
+    构造两段相同的合成音频，唯一区别是句内停顿长短：
+
+    * **短停顿**（0.6~commit_silence 之间）：应当被合并，最终只提交 1 段；
+    * **长停顿**（> commit_silence_duration）：应当在停顿处切开，提交 2 段。
+
+    Returns:
+        ``{"ok": bool, "detail": str}``，detail 形如
+        ``短停顿 -> 1 段(4.83s)；长停顿 -> 2 段(2.31s, 2.31s)``。
+    """
+    sr = 16000
+    commit = float(
+        audio_cfg.get("commit_silence_duration", DEFAULT_AUDIO_COMMIT_SILENCE_SEC)
+    )
+
+    # 取测试音频中能量最高的一段真实语音（2 秒），保证两段都是有效语音。
+    best_start, best_rms = 0, -1.0
+    piece = min(2 * sr, max(sr, wave_audio.size // 2))
+    for start in range(0, max(1, wave_audio.size - piece), sr // 4):
+        window = wave_audio[start : start + piece]
+        rms = float(np.sqrt(np.mean(np.square(window)) + 1e-12))
+        if rms > best_rms:
+            best_rms, best_start = rms, start
+    speech = wave_audio[best_start : best_start + piece]
+    if speech.size < sr:
+        return {"ok": False, "detail": f"测试音频可用语音不足（{speech.size} 样本）"}
+
+    def silence(seconds: float) -> np.ndarray:
+        return np.zeros(int(seconds * sr), dtype=np.float32)
+
+    def run_case(gap_seconds: float, gain: float = 1.0, vads_disabled: bool = False) -> List[float]:
+        """喂入 [语音][停顿][语音][长静音]，返回每次提交的音频时长（秒）。"""
+        collected: List[float] = []
+        lock = threading.Lock()
+
+        def _on_utt(samples: np.ndarray) -> None:
+            with lock:
+                collected.append(float(samples.size) / sr)
+
+        with audio._lock:  # noqa: SLF001 - 自检专用，直接驱动整段累积状态机
+            audio._mode = "toggle"  # noqa: SLF001
+            audio._on_utterance = _on_utt  # noqa: SLF001
+            audio._recording = True  # noqa: SLF001
+            audio._acc.reset_session()  # noqa: SLF001
+            prev_vad_failed = audio._vad_failed  # noqa: SLF001
+            if vads_disabled:
+                # 模拟"VAD 不可用 / 完全漏判"：整段累积必须靠峰值判定兜住。
+                audio._vad = None  # noqa: SLF001
+                audio._vad_failed = True  # noqa: SLF001
+
+        try:
+            stream = np.concatenate(
+                [speech, silence(gap_seconds), speech, silence(max(2.0 * commit, 2.0))]
+            ) * gain
+            for i in range(0, stream.size, 512):
+                audio._on_block(stream[i : i + 512])  # noqa: SLF001
+
+            # 结束时会返回"尚未提交的整段"（正常情况应为空：上面已由长静音触发提交）。
+            tail = audio.stop_recording()
+            if tail is not None and tail.size >= int(0.25 * sr):
+                with lock:
+                    collected.append(float(tail.size) / sr)
+        finally:
+            with audio._lock:  # noqa: SLF001
+                audio._vad_failed = prev_vad_failed  # noqa: SLF001
+
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            with lock:
+                if len(collected) >= 2:
+                    break
+            time.sleep(0.02)
+        with lock:
+            return list(collected)
+
+    # 短停顿取"刚超过 VAD 断句粒度、又明显小于提交阈值"的值：
+    # 这样既能验证"跨 VAD 边界合并"，也不会因 commit 配置很小而误判。
+    short_gap = min(
+        max(audio.min_silence_duration + 0.15, 0.2), max(0.2, commit - 0.5)
+    )
+    long_gap = commit + 1.0
+    merged = run_case(short_gap)
+    split = run_case(long_gap)
+    # 回归用例：VAD 不可用 + 轻声说话（历史事故：整段被丢弃，只剩最后一小句）。
+    quiet = run_case(short_gap, gain=0.05, vads_disabled=True)
+    detail = (
+        f"短停顿(%.1fs) -> %d 段%s；长停顿(%.1fs) -> %d 段%s；"
+        f"VAD 不可用 + 轻声 -> %d 段%s"
+        % (
+            short_gap,
+            len(merged),
+            "(" + ", ".join(f"{d:.2f}s" for d in merged) + ")" if merged else "",
+            long_gap,
+            len(split),
+            "(" + ", ".join(f"{d:.2f}s" for d in split) + ")" if split else "",
+            len(quiet),
+            "(" + ", ".join(f"{d:.2f}s" for d in quiet) + ")" if quiet else "",
+        )
+    )
+    ok = (
+        len(merged) == 1
+        and len(split) >= 2
+        and merged
+        and merged[0] > speech.size / sr  # 合并后的整段必须比单段语音更长
+        # 轻声 + VAD 失灵时也必须把两句话都收进来（不允许只剩尾巴）
+        and len(quiet) == 1
+        and quiet[0] > 2.0 * speech.size / sr
+    )
+    return {"ok": bool(ok), "detail": detail}
+
+
 # --------------------------------------------------------------------------- #
 # 子命令：端到端自检
 # --------------------------------------------------------------------------- #
@@ -617,14 +735,15 @@ def run_selftest(cfg: Dict[str, Any], base_dir: str) -> int:
     record("环境: 外部工具可用 (xclip/xdotool/paplay/pactl/parecord)", tool_ok, tool_detail)
 
     # ---- 1. PulseAudio 麦克风 ---------------------------------------- #
-    source = find_pulse_source(str(cfg["audio"]["preferred_device_substring"]))
-    _pref = str(cfg["audio"]["preferred_device_substring"] or "").strip()
-    if _pref:
-        _audio_check_name = f"音频: 找到 PulseAudio 输入源 (含 '{_pref}')"
-    else:
-        _audio_check_name = "音频: 找到 PulseAudio 默认输入源"
+    preferred_source = str(cfg["audio"]["preferred_device_substring"] or "").strip()
+    source = find_pulse_source(preferred_source)
+    source_check = (
+        f"音频: 找到 PulseAudio 输入源 (含 '{preferred_source}')"
+        if preferred_source
+        else "音频: 找到 PulseAudio 默认输入源"
+    )
     record(
-        _audio_check_name,
+        source_check,
         source is not None,
         f"source={source}",
     )
@@ -638,6 +757,13 @@ def run_selftest(cfg: Dict[str, Any], base_dir: str) -> int:
             vad_model_path=resolve_path(cfg["audio"].get("vad_model_path"), base_dir),
             vad_threshold=float(cfg["audio"]["vad_threshold"]),
             min_silence_duration=float(cfg["audio"]["min_silence_duration"]),
+            commit_silence_duration=float(
+                cfg["audio"].get("commit_silence_duration", DEFAULT_AUDIO_COMMIT_SILENCE_SEC)
+            ),
+            max_utterance_seconds=float(
+                cfg["audio"].get("max_utterance_seconds", DEFAULT_AUDIO_MAX_UTTERANCE_SEC)
+            ),
+            session_dump_dir=resolve_path(cfg["audio"].get("session_dump_dir"), base_dir),
         )
         record(
             "音频: AudioCapture 初始化成功",
@@ -779,6 +905,26 @@ def run_selftest(cfg: Dict[str, Any], base_dir: str) -> int:
             )
         except Exception as exc:  # noqa: BLE001
             record("音频: 录音 0.5s 采集链路验证", False, f"{type(exc).__name__}: {exc}")
+
+    # ---- 4b. 连续听写"整段累积"逻辑（合成音频，不依赖麦克风） ---------- #
+    if audio is not None and test_wav is not None:
+        try:
+            # 关掉采集线程，避免真实环境声音混进合成测试音频。
+            audio.close()
+            merge_detail = _probe_toggle_merge(
+                audio, read_wav_16k_mono(test_wav), cfg["audio"]
+            )
+            record(
+                "音频: 连续听写整段累积（短停顿合并 / 长停顿切分）",
+                bool(merge_detail.get("ok")),
+                str(merge_detail.get("detail", "")),
+            )
+        except Exception as exc:  # noqa: BLE001
+            record(
+                "音频: 连续听写整段累积（短停顿合并 / 长停顿切分）",
+                False,
+                f"{type(exc).__name__}: {exc}",
+            )
 
     # ---- 5. 释放资源 -------------------------------------------------- #
     if audio is not None:

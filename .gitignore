@@ -1,23 +1,22 @@
-# 用户本地配置（可能含 API Key）：Git 只追踪 config.example.yaml
 config.yaml
-config.yaml.bak
-*.bak
+config.yaml.*
+.env
+.env.*
+!.env.example
 *.log
 *.pid
-# 模型与权重（体积大 + 需用户本机下载）
-models/*
-!models/.gitkeep
+*.bak
+sessions/
+recordings/
 *.onnx
 *.pt
 *.pth
 *.ckpt
 *.tar.bz2
-# Python
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.venv/
 build/
 dist/
 *.egg-info/
-.env
-.venv/

@@ -8,6 +8,7 @@
 #   ./run.sh restart   重启后台守护进程
 #   ./run.sh status    查看运行状态与最近 15 行日志
 #   ./run.sh fg        前台运行（实时查看日志，Ctrl+C 退出）
+#   ./run.sh test-unit 运行纯逻辑单元测试（不需要麦克风/模型）
 #   ./run.sh test      运行端到端自检
 #   ./run.sh dashboard [port]   后台启动图形化管理面板（默认端口取 config.yaml）
 #   ./run.sh dashboard-stop     停止图形化管理面板
@@ -194,6 +195,12 @@ do_test() {
     "$PYTHON" "$MAIN" --config "$CONFIG" --test-pipeline
 }
 
+do_test_unit() {
+    echo "运行整段累积器单元测试（不需要麦克风 / 模型 / 网络）…"
+    echo "---"
+    "$PYTHON" "$PROJECT_DIR/tests/test_utterance_accumulator.py"
+}
+
 # --------------------------------------------------------------------------- #
 # 图形化管理面板
 # --------------------------------------------------------------------------- #
@@ -309,6 +316,7 @@ voice-input 管理脚本
   restart          重启后台守护进程
   status           查看运行状态与最近 15 行日志
   fg               前台运行（实时查看日志，Ctrl+C 退出）
+  test-unit        运行纯逻辑单元测试（不需要麦克风 / 模型）
   test             运行端到端自检
   dashboard [port] 后台启动图形化管理面板（PID: /tmp/voice-input-dashboard.pid，
                    日志: dashboard.log；不传 port 时取 config.yaml 的 control_center.port）
@@ -328,6 +336,7 @@ case "${1:-}" in
     status)  do_status ;;
     fg)      shift; do_fg "$@" ;;
     test)    do_test ;;
+    test-unit) do_test_unit ;;
     dashboard)      shift; do_dashboard "$@" ;;
     dashboard-stop) do_dashboard_stop ;;
     mode)           shift; do_mode "$@" ;;
