@@ -21,23 +21,13 @@ AirPods Pro (2nd generation)
 
 ---
 
-## Why another AirPods project?
+## Why I built this
 
-AirPods are standard Bluetooth audio devices. Linux already has **everything
-needed in the kernel**: `btusb`, the Bluetooth core, A2DP, HFP and the GATT
-battery service. A kernel module would not make them sound better, and it could
-not manage the desktop audio graph anyway.
+This is part of my everyday Linux setup. Alongside my HECATE GM400 wired headset, I also use AirPods and want convenient connection, playback and microphone access on the same computer. When something fails, I want to tell whether the issue is Bluetooth connectivity, an audio profile or a missing input source.
 
-What Linux is missing is the **glue** that Apple's ecosystem provides:
+The module brings pairing, reconnecting, status checks and A2DP/HFP switching into a CLI with an optional background service. It uses the existing BlueZ and desktop audio services. My goal is to reduce repeated setup work in daily use and share an implementation that others can inspect, adapt and reuse.
 
-- a pairing flow that survives Apple's "Just Works" quirks;
-- reconnecting when the buds come out of the case;
-- showing the battery cells the firmware exposes, instead of one vague percentage;
-- choosing A2DP vs. HFP without hunting through `pavucontrol`;
-- telling you *why* pairing failed.
-
-`airpodsd` is that glue. It is a **userspace driver**: a thin
-layer over BlueZ's D-Bus API and PulseAudio/PipeWire's `pactl` interface.
+For turning speech into text in the focused window, it can be used with [Voice Input](../../voice-input/README_EN.md). Listening and microphone use involve different Bluetooth audio profiles; device and system limitations are described below.
 
 > **Not affiliated with Apple.** AirPods is a trademark of Apple Inc. This is
 > an independent, reverse-engineering-free integration built on public
@@ -357,7 +347,7 @@ battery mapping or implement AAP support.
 No. Install the distro packages once, then everything runs as your user.
 
 **Is this a kernel driver?**
-No, and it does not need to be. See [Why another AirPods project?](#why-another-airpods-project).
+No. It uses BlueZ for Bluetooth management and `pactl` for desktop audio; it contains no kernel module.
 
 **Will it improve sound quality?**
 No. It gives you control and visibility; the codec is negotiated by BlueZ and

@@ -1,14 +1,26 @@
 # Migration notes
 
-## Voice input
+## Which voice input version is included?
 
-The original `jxmao-cn/linux-voice-input` repository is the provenance of the voice component. This monorepo combines distributable project files with subsequent local work, including whole-utterance accumulation, regression tests and session replay. Existing deployment fixes and example configuration are retained during synchronization.
+The voice module combines two pre-existing working directories. Its feature source is the author's daily-use version, which continued to receive changes after the standalone public release.
 
-The original working installation is not moved or overwritten. After checking the new checkout, users can copy their own configuration and download or reuse existing models locally. Never commit those files.
+| Source or destination | Role in the migration |
+| --- | --- |
+| The original daily-use directory named `voice-input`, outside this repository | Source of the newer capture pipeline, whole-utterance dictation, accumulator tests and session replay tool |
+| The standalone `linux-voice-input` checkout, at `47264ac` | Earlier public release; source of the release history, example configuration, deployment initialization and desktop integration |
+| This repository's `voice-input/` | Combined, maintained module: newer daily-use features, retained deployment improvements, plus the integration-time safety fix |
 
-Do not run two voice daemons or dashboards concurrently: they use the same default PID paths, hotkeys and dashboard port. Stop the old instance explicitly before starting another checkout. Publication does not perform that switch.
+In the combined version, uninterrupted speech is checked against the hard safety limit before the soft duration target. This fixes a branch-order problem in the daily-use accumulator, where continuous speech could prevent the hard-limit branch from running. Its regression test verifies that consecutive emitted segments contain the original samples without gaps or duplication.
 
-The former standalone repository remains available. New combined development belongs here; no archival or destructive change to the original repository is part of this migration.
+The audio capture implementation and replay tool were imported from the daily-use directory. Public defaults use the system microphone and disable LLM correction until configured. Personal settings, model files, logs and recordings are kept outside version control.
+
+The initial combination is recorded in commit `fc04241`. The old [standalone repository](https://github.com/jxmao-cn/linux-voice-input) remains available as the earlier release; ongoing combined development belongs here.
+
+### Switching a local installation
+
+The daily-use directory is still a separate copy. This repository does not link to it or automatically synchronize later changes. Changes made to that older directory must be explicitly ported; publishing this repository did not change which program an existing installation launches.
+
+To switch to this checkout, prepare its dependencies, copy personal configuration locally, and reuse or download the required models. Stop the previous daemon and dashboard before starting the new ones: both checkouts use the same default PID paths, hotkeys and dashboard port. Personal configuration and models must remain untracked.
 
 ## GM400
 

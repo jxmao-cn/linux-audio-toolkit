@@ -2,50 +2,60 @@
 
 [简体中文](README.md) · [MIT License](LICENSE)
 
-A modular Linux desktop toolkit for headset integration and voice typing. Headset modules expose audio devices to the system; Voice Input captures speech, transcribes it, and pastes text into the focused window. Install modules independently.
+This repository grew out of a few everyday problems on my Linux desktop: getting a wired headset ready for both playback and recording, making my AirPods easier to connect and switch between listening and microphone use, and speaking into a headset to enter text in the focused window.
 
-| Module | Purpose | Status |
+**HECATE GM400 is the model name of the wired headset I use.** It connects to this computer through USB. The GM400 module addresses discovery and audio recovery for that headset. The AirPods module handles my Bluetooth earbuds, while Voice Input turns an available microphone into a desktop dictation tool.
+
+I built these tools to make my own computer more convenient to use. Sharing the programs, scripts and troubleshooting notes may help others with similar setups reuse them or adapt them to their own devices.
+
+## What each tool helps with
+
+| Everyday situation | Tool | What it does |
 | --- | --- | --- |
-| [Voice Input](voice-input/README_EN.md) | Local SenseVoice ASR, push-to-talk, continuous dictation, optional correction and control panel | Includes subsequent local changes, whole-utterance accumulation and offline replay |
-| [HECATE GM400](headsets/gm400/README_EN.md) | PulseAudio discovery and recovery after delayed USB initialization | Watcher, user service and installation tools included |
-| [AirPods / airpodsd](headsets/airpods/README.md) | Bluetooth pairing, reconnect, battery and A2DP/HFP management | Includes profile-name compatibility and delayed HFP input retries |
+| A wired headset is plugged in, but the desktop has no usable playback or recording endpoint | [HECATE GM400 wired headset support](headsets/gm400/README_EN.md) | Waits for USB audio initialization and helps PulseAudio discover or recover the device |
+| I want to use AirPods for listening or speaking on Linux, with convenient connection and profile controls | [AirPods management](headsets/airpods/README.md) | Provides pairing, connection, battery and A2DP/HFP controls, plus an optional reconnect daemon |
+| I want spoken words to appear in the editor, terminal or chat window I am using | [Linux Voice Input](voice-input/README_EN.md) | Supports push-to-talk and continuous dictation, then pastes recognized text into the focused window |
 
-## Quick start
+Each module can be used independently. Voice Input can use the system microphone without either headset module. The GM400 recovery script is specific to my headset and PulseAudio setup; other headsets need their own configuration and validation.
+
+## Start with your use case
 
 ```bash
 git clone https://github.com/jxmao-cn/linux-audio-toolkit.git
-cd linux-audio-toolkit/voice-input
-./setup.sh
-./run.sh start
+cd linux-audio-toolkit
 ```
 
-See the [GM400 module](headsets/gm400/README_EN.md) for installation and recovery side effects. Voice Input also works independently with a system microphone.
+- **For dictation**, follow the [Voice Input guide](voice-input/README_EN.md) to prepare the environment and models, then start the hotkey listener.
+- **For a GM400 discovery problem**, read the [wired headset guide](headsets/gm400/README_EN.md), check the symptoms and audio backend, then install the recovery service if appropriate.
+- **For AirPods**, follow the [installation and pairing guide](headsets/airpods/README.md) to prepare BlueZ, audio tools and Python.
 
-## Configuration and privacy
+Headset services require explicit activation after installation. When both headsets are connected, choose the default input/output policy you want. The modules do not yet share a device-priority coordinator; see [architecture](docs/architecture.md).
 
-Personal configuration, API keys, model weights, recordings and logs are excluded from Git. Start from `voice-input/config.example.yaml`.
+## Which voice input version is included?
 
-LLM correction is disabled by default. ASR and rules run locally; cloud correction or OpenCode CLI sends recognized text to the selected provider. The entire pipeline is then no longer offline.
+The `voice-input/` module incorporates continuous dictation, whole-utterance accumulation and replay tools from my daily-use version, while retaining configuration initialization, installation and desktop integration improvements from the earlier standalone release. Integration also fixed the safety time limit for uninterrupted speech.
 
-The control panel defaults to loopback (`127.0.0.1`) and can manage local processes and optional model containers. Use it only in a trusted local session. The GM400 watcher can change default audio devices; the AirPods daemon selects a default input in HFP mode. Choose a device policy when both are connected; see [architecture](docs/architecture.md).
+This combined repository is the current maintenance entry point. The [standalone voice repository](https://github.com/jxmao-cn/linux-voice-input) remains available as the earlier release. See [migration notes](docs/migration.md) for the source relationship.
 
-## Validation
+## Configuration and personal data
+
+Initialize personal settings from `voice-input/config.example.yaml`. Keep keys, models, logs, recordings and Bluetooth state on your machine.
+
+ASR and rule-based cleanup can run locally; LLM correction is disabled by default. Enabling a cloud backend or OpenCode CLI sends recognized text to the selected service. The control panel defaults to loopback (`127.0.0.1`).
+
+## Development and validation
+
+Run each command from the repository root, with the dependencies described by its module:
 
 ```bash
-cd voice-input
-python -m unittest discover -s tests -v
-python tests/test_utterance_accumulator.py
-cd ../headsets/gm400
-./tests/run.sh
+# Voice Input: Python 3.10+
+(cd voice-input && python -m unittest discover -s tests -v && python tests/test_utterance_accumulator.py)
+
+# GM400: simulated audio devices
+headsets/gm400/tests/run.sh
+
+# AirPods: Python 3.9+
+(cd headsets/airpods && PYTHONPATH=src python -m unittest discover -s tests -t . -v)
 ```
 
-Run AirPods tests separately from the repository root:
-
-```bash
-cd headsets/airpods
-PYTHONPATH=src python -m unittest discover -s tests -t . -v
-```
-
-Use a Python 3.10+ development environment with the module dependencies installed. Headless tests require neither a microphone nor ASR models. CI validates offline logic; physical devices and desktop/backend combinations require separate hardware testing.
-
-The voice component originates from [linux-voice-input](https://github.com/jxmao-cn/linux-voice-input) and includes subsequent local work. See [migration notes](docs/migration.md) and [architecture](docs/architecture.md).
+CI covers program logic, installation and packaging. Physical headsets, firmware, desktops and audio backends still require hardware validation. Each module documents its current scope.

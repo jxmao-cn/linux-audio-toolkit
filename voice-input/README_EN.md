@@ -1,6 +1,16 @@
-# Linux Voice Input
+# Linux Voice Input: dictate into the focused window
 
-A local speech input tool for Linux desktops with push-to-talk (PTT) and continuous dictation (Toggle). Speech recognition uses a local `sherpa-onnx` / SenseVoice model. Recognized text can pass through rule-based cleanup and, when configured, an OpenAI-compatible local or remote service.
+I built this for everyday text entry on Linux: while wearing a headset, I want to hold a key, say something, and have the text appear in my editor, terminal or chat window. For longer dictation, a brief pause should not split a sentence into fragments too early.
+
+This is the speech-to-text part of the repository. The headset modules handle device access; Voice Input uses an available system microphone and can run independently of either headset model.
+
+## What a session looks like
+
+- **Push-to-talk**: hold Right Shift or F9, speak, then release to recognize and paste the whole segment into the focused window.
+- **Continuous dictation**: press Right Ctrl to start. Short pauses remain inside a segment; longer silence triggers recognition. Press again to stop and submit the remaining audio.
+- **Optional correction**: local SenseVoice recognition is followed by rule-based cleanup. A local or cloud LLM can be configured if wanted; LLM correction is disabled by default.
+
+Keys are configurable. Text is pasted through the clipboard using the appropriate shortcut for terminals or other applications; behavior depends on the desktop and target application.
 
 ## Continuous dictation
 

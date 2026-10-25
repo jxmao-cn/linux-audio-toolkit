@@ -1,6 +1,18 @@
-# GM400 PulseAudio watcher
+# HECATE GM400 wired headset: Linux audio discovery and recovery
 
-A user service for the HECATE GM400 USB headset. It waits 120 seconds after
+**HECATE GM400 is the model name of my wired headset.** It connects to my Linux computer through USB for playback and microphone input. `gm400-watch` is the recovery script written for this headset.
+
+## Why I built it
+
+I encountered a practical problem: the headset was plugged in and ALSA could see its USB sound card, but the desktop audio server sometimes had no usable playback or recording endpoint. That prevented me from listening, using the microphone, or relying on it for voice typing.
+
+The script grew out of the steps needed to make this setup usable day to day. It waits for the device to become ready, then attempts recovery so I have less manual audio troubleshooting to repeat. It is shared for people with the same headset and similar symptoms.
+
+If your headset already plays and records correctly, the normal system audio settings or [Voice Input](../../voice-input/README_EN.md) may be all you need. This module focuses on GM400 discovery and recovery.
+
+## How it works
+
+A user service watches the ALSA card identified as `GM400`. It waits 120 seconds after
 ALSA enumeration and allows at most one recovery probe per enumeration. It
 never unloads global `module-udev-detect`. The default ALSA id is `GM400`; card,
 sink, and source matching can be configured through environment variables.
@@ -11,14 +23,28 @@ output. If a card is present but its endpoints are incomplete, the watcher may
 restart `pulseaudio.service`, interrupting all PulseAudio streams.
 
 Known device: HECATE GM400, USB `35bb:a20f`, ALSA id `GM400`. The original
-recovery setup came from this machine's GM400 configuration. This portable
+recovery setup was developed for my daily-use headset. This portable
 version has only been checked with hardware-independent stubs; it has not been
 revalidated on the physical headset. Other cards and naming schemes need
 independent validation.
 
-Run `./install.sh` to install. It does not enable or start the service. Enable
-it explicitly with `systemctl --user enable --now gm400-watch.service`. Both
-destinations are checked before installation, so conflicts do not leave a
+## Installation
+
+From the repository root:
+
+```sh
+cd headsets/gm400
+./install.sh
+```
+
+The installer copies the script and user service unit. It does not enable or start the service. After installation, activate it explicitly:
+
+```sh
+systemctl --user daemon-reload
+systemctl --user enable --now gm400-watch.service
+```
+
+Both destinations are checked before installation, so conflicts do not leave a
 partial install. `XDG_BIN_HOME` must remain `~/.local/bin` because the unit
 uses `%h/.local/bin`; `XDG_CONFIG_HOME` and `DESTDIR` support offline staging.
 Run `./uninstall.sh` to remove matching package files; it does not stop or
