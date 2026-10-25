@@ -8,6 +8,21 @@ I encountered a practical problem: the headset was plugged in and ALSA could see
 
 The script grew out of the steps needed to make this setup usable day to day. It waits for the device to become ready, then attempts recovery so I have less manual audio troubleshooting to repeat. It is shared for people with the same headset and similar symptoms.
 
+## Headset model and specifications
+
+GM400 here means the **Edifier HECATE GM400 Dual-Engine wired in-ear headset**; it is a headset model, not a Linux device or software name. The maintainer's unit is the USB-C digital-interface version. Its recorded USB ID is `35bb:a20f`, and ALSA labels its card `GM400`. This USB ID comes from the maintainer's device record; the headset was not connected during the current check.
+
+| Specification | Value |
+| --- | --- |
+| Connection | Wired USB-C digital interface (maintainer's unit) |
+| Drivers | 4 × 6 mm dynamic drivers |
+| Frequency response | 20 Hz–40 kHz |
+| Impedance | 16 Ω |
+| Sensitivity | 100 dB |
+| Cable length | About 1.3 m |
+
+These product figures are listed on a [public product specification page](https://www.voptronics.com/edifier-hecate-gm400-dual-engine-in-ear-wired-headphones.html). Edifier's current official site did not provide a GM400 specification page; treat the figures as model reference, and use the local device identifiers and validation scope below for Linux compatibility.
+
 If your headset already plays and records correctly, the normal system audio settings or [Voice Input](../../voice-input/README_EN.md) may be all you need. This module focuses on GM400 discovery and recovery.
 
 ## How it works

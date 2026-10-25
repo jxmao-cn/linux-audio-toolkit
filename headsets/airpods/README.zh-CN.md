@@ -8,6 +8,8 @@
 [![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](#环境要求)
 [![English](https://img.shields.io/badge/docs-English-blue.svg)](README.md)
 
+下面的状态和配对输出使用模拟数据（AirPods Pro 2 和虚构地址），只用于展示命令格式；我实际使用的型号是 AirPods 4 主动降噪款。
+
 ```text
 $ airpodsctl status
 AirPods Pro (2nd generation)
@@ -25,6 +27,24 @@ AirPods Pro (2nd generation)
 这是我日常 Linux 使用环境的一部分：除了 HECATE GM400 有线耳机，我也使用 AirPods，希望在同一台电脑上方便地连接耳机、听声音和使用麦克风。连接不顺利时，我需要知道问题出在蓝牙连接，还是音频模式与输入源。
 
 因此这个模块把配对、重连、状态查询和 A2DP/HFP 切换整理成命令行工具，并提供可选的后台服务。它使用系统已有的 BlueZ 和音频服务，目标是减少自己日常使用时的重复操作，也给遇到类似问题的人一个可以检查、修改和复用的实现。
+
+## 我的耳机型号：AirPods 4 主动降噪款
+
+本模块针对我实际使用的 **AirPods 4（主动降噪款，AirPods 4 with Active Noise Cancellation）**。Apple 公布的主要参数如下：
+
+| 参数 | 规格 |
+| --- | --- |
+| 发布年份 | 2024 |
+| 芯片 | H2 |
+| 无线连接 | Bluetooth 5.3 |
+| 麦克风 | 双波束成形麦克风，另有内向麦克风 |
+| 防护等级 | IP54（耳机与充电盒） |
+| 单只耳机重量 | 4.3 g |
+| 充电盒 | USB-C，带扬声器，34.7 g |
+| 单次充电续航 | 开启主动降噪时最长约 4 小时；关闭噪声控制时最长约 5 小时 |
+| 加充电盒续航 | 开启主动降噪时最长约 20 小时；关闭噪声控制时最长约 30 小时 |
+
+尺寸、续航等为 Apple 在其测试条件下公布的数值；本项目通过 Linux 蓝牙音频栈提供连接与音频控制，不承诺在 Linux 上提供 Apple 生态中的全部功能。详见 [Apple AirPods 4 主动降噪款技术规格](https://support.apple.com/en-gb/121204)。
 
 如果还想把麦克风中的话直接输入当前窗口，可以配合 [语音输入模块](../../voice-input/README.md)。听声音和说话会涉及不同的蓝牙音频模式；具体设备和系统的支持情况见下文。
 

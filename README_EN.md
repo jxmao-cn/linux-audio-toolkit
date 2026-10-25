@@ -18,6 +18,19 @@ I built these tools to make my own computer more convenient to use. Sharing the 
 
 Each module can be used independently. Voice Input can use the system microphone without either headset module. The GM400 recovery script is specific to my headset and PulseAudio setup; other headsets need their own configuration and validation.
 
+## Recorded system environment
+
+The versions below were recorded on the maintainer's computer on 2026-10-25. They describe the development and everyday-use baseline, not test coverage for every Linux distribution. Other distributions and audio backends need separate validation.
+
+| Component | Current version |
+| --- | --- |
+| Distribution | Ubuntu 22.04.5 LTS (Jammy Jellyfish), x86_64 |
+| Linux kernel | 6.8.0-138-generic |
+| BlueZ | 5.64 |
+| PulseAudio | 15.99.1 |
+
+The maintainer's HECATE GM400 wired headset connects over USB-C. Its recorded USB ID is `35bb:a20f`, and its ALSA card ID is `GM400`. The AirPods module targets **AirPods 4 with Active Noise Cancellation**. Neither headset was connected during this version check, so these are project setup details rather than a live audio test.
+
 ## Start with your use case
 
 ```bash
@@ -30,12 +43,6 @@ cd linux-audio-toolkit
 - **For AirPods**, follow the [installation and pairing guide](headsets/airpods/README.md) to prepare BlueZ, audio tools and Python.
 
 Headset services require explicit activation after installation. When both headsets are connected, choose the default input/output policy you want. The modules do not yet share a device-priority coordinator; see [architecture](docs/architecture.md).
-
-## Which voice input version is included?
-
-The `voice-input/` module incorporates continuous dictation, whole-utterance accumulation and replay tools from my daily-use version, while retaining configuration initialization, installation and desktop integration improvements from the earlier standalone release. Integration also fixed the safety time limit for uninterrupted speech.
-
-Voice input is now maintained in this combined repository. The former standalone project has been retired, and its commit history is preserved here. See [migration notes](docs/migration.md) for the source relationship.
 
 ## Configuration and personal data
 

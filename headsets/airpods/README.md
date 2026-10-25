@@ -9,6 +9,8 @@ systemd user daemon, with no third-party pip packages.
 [![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](#requirements)
 [![中文](https://img.shields.io/badge/文档-简体中文-red.svg)](README.zh-CN.md)
 
+The status and pairing transcripts below use synthetic mock data (AirPods Pro 2 and a fake address) for illustration; my headset model is AirPods 4 with Active Noise Cancellation.
+
 ```text
 $ airpodsctl status
 AirPods Pro (2nd generation)
@@ -26,6 +28,24 @@ AirPods Pro (2nd generation)
 This is part of my everyday Linux setup. Alongside my HECATE GM400 wired headset, I also use AirPods and want convenient connection, playback and microphone access on the same computer. When something fails, I want to tell whether the issue is Bluetooth connectivity, an audio profile or a missing input source.
 
 The module brings pairing, reconnecting, status checks and A2DP/HFP switching into a CLI with an optional background service. It uses the existing BlueZ and desktop audio services. My goal is to reduce repeated setup work in daily use and share an implementation that others can inspect, adapt and reuse.
+
+## My model: AirPods 4 with Active Noise Cancellation
+
+This module targets the **AirPods 4 with Active Noise Cancellation** that I use. Apple's published specifications include:
+
+| Specification | Value |
+| --- | --- |
+| Introduced | 2024 |
+| Chip | H2 |
+| Wireless connection | Bluetooth 5.3 |
+| Microphones | Dual beamforming microphones plus an inward-facing microphone |
+| Ingress protection | IP54 (earbuds and case) |
+| Weight per earbud | 4.3 g |
+| Charging case | USB-C, built-in speaker, 34.7 g |
+| Listening time per charge | Up to about 4 hours with ANC on; 5 hours with noise control off |
+| Listening time with case | Up to about 20 hours with ANC on; 30 hours with noise control off |
+
+Apple's figures reflect its test conditions. This project uses the Linux Bluetooth audio stack for connection and audio controls; it does not provide every feature of Apple's ecosystem. See [Apple's AirPods 4 with ANC technical specifications](https://support.apple.com/en-gb/121204).
 
 For turning speech into text in the focused window, it can be used with [Voice Input](../../voice-input/README_EN.md). Listening and microphone use involve different Bluetooth audio profiles; device and system limitations are described below.
 
